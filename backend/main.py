@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.v1.router import api_router
+from backend.api.v1.mcp import get_mcp_app
 from backend.core.search import NodeSearchIndex
 from backend.database.session import engine
 from backend.schemas.response import ErrorDetail, ErrorResponse, ErrorCode
@@ -70,6 +71,9 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+
+# MCP Server（SSE transport） — 挂载为子应用，路径 /mcp
+app.mount("/mcp", get_mcp_app())
 
 
 # Also mount healthz at root level for convenience

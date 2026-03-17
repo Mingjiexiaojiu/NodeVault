@@ -25,6 +25,13 @@
             >
               节点管理
             </RouterLink>
+            <RouterLink
+              to="/search"
+              class="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors"
+              :class="{ 'text-indigo-600': route.name === 'search' }"
+            >
+              搜索
+            </RouterLink>
           </div>
 
           <!-- 用户信息 -->
@@ -69,8 +76,8 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
-// 在仪表盘和节点列表页不显示返回球
-const canGoBack = computed(() => !['dashboard', 'node-list'].includes(String(route.name)))
+// 在仪表盘、节点列表、搜索等主导航页不显示返回球
+const canGoBack = computed(() => !['dashboard', 'node-list', 'search'].includes(String(route.name)))
 
 async function handleLogout() {
   await auth.logout()

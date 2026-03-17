@@ -1,5 +1,6 @@
 import axios from 'axios'
 import router from '@/router'
+import { useAuthStore } from '@/stores/auth'
 
 const http = axios.create({
   baseURL: '/api/v1',
@@ -29,8 +30,17 @@ http.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      router.push('/login')
+      // 避免在登录请求本身失败时触发 session expired 弹窗
+      const isLoginRequest = error.config?.url?.includes('/auth/login')
+      if (!isLoginRequest) {
+        try {
+          const authStore = useAuthStore()
+          authStore.notifySessionExpired()
+        } catch {
+          localStorage.removeItem('token')
+          router.push('/login')
+        }
+      }
     }
     return Promise.reject(error)
   },

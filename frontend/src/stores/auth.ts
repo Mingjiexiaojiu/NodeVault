@@ -6,6 +6,7 @@ import type { UserInfo, LoginPayload } from '@/api/auth'
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(localStorage.getItem('token'))
   const user = ref<UserInfo | null>(null)
+  const sessionExpired = ref(false)
 
   function setToken(t: string) {
     token.value = t
@@ -16,6 +17,17 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null
     user.value = null
     localStorage.removeItem('token')
+  }
+
+  function notifySessionExpired() {
+    if (token.value) {
+      clearToken()
+      sessionExpired.value = true
+    }
+  }
+
+  function dismissSessionExpired() {
+    sessionExpired.value = false
   }
 
   async function login(payload: LoginPayload) {
@@ -43,5 +55,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, user, login, logout, fetchMe, initFromStorage }
+  return { token, user, sessionExpired, login, logout, fetchMe, initFromStorage, notifySessionExpired, dismissSessionExpired }
 })

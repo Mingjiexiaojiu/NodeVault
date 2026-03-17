@@ -46,6 +46,30 @@ const router = createRouter({
       component: () => import('@/views/NodeInvokeView.vue'),
       meta: { layout: 'app' },
     },
+    {
+      path: '/nodes/:id/stats',
+      name: 'node-stats',
+      component: () => import('@/views/NodeStatsView.vue'),
+      meta: { layout: 'app' },
+    },
+    {
+      path: '/nodes/:id/edit',
+      name: 'node-edit',
+      component: () => import('@/views/NodeEditView.vue'),
+      meta: { layout: 'app' },
+    },
+    {
+      path: '/search',
+      name: 'search',
+      component: () => import('@/views/SearchView.vue'),
+      meta: { layout: 'app' },
+    },
+    {
+      path: '/tags/:tag',
+      name: 'tag-nodes',
+      component: () => import('@/views/TagNodesView.vue'),
+      meta: { layout: 'app' },
+    },
   ],
 })
 

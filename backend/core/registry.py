@@ -71,10 +71,18 @@ class NodeRegistry:
         page: int = 1,
         page_size: int = 20,
     ) -> list[Node]:
+        from sqlalchemy import or_
         ns = await self._get_namespace(owner)
+        # public/internal nodes are visible to all authenticated users; private nodes only to their owner
         stmt = (
             select(Node)
-            .where(Node.namespace_id == ns.id)
+            .where(
+                or_(
+                    Node.visibility == "public",
+                    Node.visibility == "internal",
+                    Node.namespace_id == ns.id,
+                )
+            )
             .where(Node.status != NodeStatus.ARCHIVED.value)
             .options(selectinload(Node.tags))
         )
