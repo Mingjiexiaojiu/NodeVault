@@ -40,11 +40,24 @@
         <div v-for="i in 5" :key="i" class="h-10 bg-gray-100 rounded animate-pulse" />
       </div>
 
-      <EmptyState v-else-if="recentNodes.length === 0" description="还没有节点">
+      <div v-else-if="loadError" class="flex flex-col items-center justify-center py-12 text-center">
+        <svg class="h-12 w-12 text-red-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+        </svg>
+        <p class="text-sm text-gray-500 mb-3">加载失败，请刷新页面重试</p>
+        <button @click="reload" class="text-sm text-indigo-600 hover:underline">重新加载</button>
+      </div>
+
+      <div v-else-if="recentNodes.length === 0" class="flex flex-col items-center justify-center py-12 text-center">
+        <svg class="h-14 w-14 text-indigo-100 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        </svg>
+        <p class="text-gray-900 font-medium mb-1">还没有节点</p>
+        <p class="text-sm text-gray-500 mb-4">注册你的第一个节点，开始管理 AI 能力</p>
         <RouterLink to="/nodes/new">
-          <BaseButton variant="secondary" class="mt-2">注册第一个节点</BaseButton>
+          <BaseButton>注册第一个节点</BaseButton>
         </RouterLink>
-      </EmptyState>
+      </div>
 
       <div v-else class="divide-y divide-gray-100">
         <RouterLink
@@ -75,11 +88,11 @@ import { useAuthStore } from '@/stores/auth'
 import BaseButton from '@/components/BaseButton.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TypeBadge from '@/components/TypeBadge.vue'
-import EmptyState from '@/components/EmptyState.vue'
 
 const auth = useAuthStore()
 const nodes = ref<NodeItem[]>([])
 const loading = ref(true)
+const loadError = ref(false)
 
 const stats = computed(() => ({
   total: nodes.value.length,
@@ -97,12 +110,18 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
 }
 
-onMounted(async () => {
+async function reload() {
+  loading.value = true
+  loadError.value = false
   try {
     const res = await listNodes({ page_size: 100 })
-    nodes.value = res.data.items
+    nodes.value = res.data
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
   }
-})
+}
+
+onMounted(reload)
 </script>

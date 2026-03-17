@@ -157,8 +157,8 @@ async function fetchNodes() {
       ...(filter.status ? { status: filter.status } : {}),
     }
     const res = await listNodes(params)
-    nodes.value = res.data.items
-    total.value = res.data.total
+    nodes.value = res.data
+    total.value = res.data.length
   } finally {
     loading.value = false
   }

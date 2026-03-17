@@ -87,7 +87,7 @@ export interface CreateNodePayload {
 }
 
 export const listNodes = (params?: NodeListParams) =>
-  http.get<PagedResponse<NodeItem>>('/nodes', { params })
+  http.get<NodeItem[]>('/nodes', { params })
 
 export const getNode = (id: string) => http.get<NodeItem>(`/nodes/${id}`)
 
