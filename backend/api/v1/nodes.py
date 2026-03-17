@@ -1,0 +1,365 @@
+﻿import uuid
+
+import structlog
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.auth.deps import get_current_user
+from backend.core.registry import NodeRegistry
+from backend.core.search import NodeSearchIndex
+from backend.core.versioning import VersionCompatibilityChecker
+from backend.database.session import get_db
+from backend.models.node import Node, NodeVersion
+from backend.models.user import User
+from backend.schemas.node import (
+    NodeCreate,
+    NodeDetailResponse,
+    NodeResponse,
+    NodeUpdate,
+    NodeVersionCreate,
+    NodeVersionResponse,
+)
+from backend.schemas.response import ApiResponse
+
+logger = structlog.get_logger()
+router = APIRouter(prefix="/nodes", tags=["Nodes"])
+
+
+def _node_to_response(node: Node) -> NodeResponse:
+    return NodeResponse(
+        id=node.id,
+        name=node.name,
+        display_name=node.display_name,
+        description=node.description,
+        type=node.type,
+        category=node.category,
+        status=node.status,
+        visibility=node.visibility,
+        namespace_id=node.namespace_id,
+        owner_id=node.owner_id,
+        tags=[t.tag for t in node.tags],
+        created_at=node.created_at,
+        updated_at=node.updated_at,
+    )
+
+
+@router.post("", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
+async def register_node(
+    payload: NodeCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NodeResponse:
+    registry = NodeRegistry(db)
+    try:
+        node = await registry.create_node(payload, owner=current_user)
+    except Exception as exc:
+        if "duplicate" in str(exc).lower() or "unique" in str(exc).lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Node name already exists in this namespace",
+            )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+    # Sync to search index (non-blocking)
+    try:
+        NodeSearchIndex().upsert_node(
+            {
+                "id": str(node.id),
+                "name": node.name,
+                "display_name": node.display_name,
+                "description": node.description,
+                "type": node.type,
+                "status": node.status,
+                "namespace_id": str(node.namespace_id),
+                "invocation_count": node.invocation_count,
+                "tags": [t.tag for t in node.tags],
+            }
+        )
+    except Exception as exc:
+        logger.warning("search_index_sync_failed", node_id=str(node.id), error=str(exc))
+
+    return ApiResponse(data=_node_to_response(node).model_dump(), message="Node 已注册")
+
+
+@router.get("", response_model=ApiResponse)
+async def list_nodes(
+    type: str | None = Query(None),
+    status_filter: str | None = Query(None, alias="status"),
+    tag: str | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[NodeResponse]:
+    registry = NodeRegistry(db)
+    nodes = await registry.list_nodes(
+        owner=current_user,
+        type=type,
+        status=status_filter,
+        tag=tag,
+        page=page,
+        page_size=page_size,
+    )
+    return ApiResponse(data=[_node_to_response(n).model_dump() for n in nodes])
+
+
+@router.get("/{node_id}", response_model=ApiResponse)
+async def get_node(
+    node_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NodeDetailResponse:
+    registry = NodeRegistry(db)
+    node = await registry.get_node(node_id)
+    if node is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Node not found")
+    resp = _node_to_response(node)
+    detail_resp = NodeDetailResponse(
+        **resp.model_dump(),
+        versions=[NodeVersionResponse.model_validate(v) for v in node.versions],
+    )
+    return ApiResponse(data=detail_resp.model_dump())
+
+
+@router.patch("/{node_id}", response_model=ApiResponse)
+async def update_node(
+    node_id: uuid.UUID,
+    payload: NodeUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> NodeResponse:
+    registry = NodeRegistry(db)
+    try:
+        node = await registry.update_node(
+            node_id, payload.model_dump(exclude_none=True), owner=current_user
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    # Sync updated metadata to search index
+    try:
+        NodeSearchIndex().upsert_node(
+            {
+                "id": str(node.id),
+                "name": node.name,
+                "display_name": node.display_name,
+                "description": node.description,
+                "type": node.type,
+                "status": node.status,
+                "namespace_id": str(node.namespace_id),
+                "invocation_count": node.invocation_count,
+                "tags": [t.tag for t in node.tags],
+            }
+        )
+    except Exception as exc:
+        logger.warning("search_index_sync_failed", node_id=str(node_id), error=str(exc))
+
+    return ApiResponse(data=_node_to_response(node).model_dump())
+
+
+@router.delete("/{node_id}", response_model=ApiResponse)
+async def delete_node(
+    node_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ApiResponse:
+    registry = NodeRegistry(db)
+    try:
+        await registry.archive_node(node_id, owner=current_user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+    # Remove from search index
+    try:
+        NodeSearchIndex().delete_node(str(node_id))
+    except Exception as exc:
+        logger.warning("search_index_delete_failed", node_id=str(node_id), error=str(exc))
+
+    return ApiResponse(message="Node 已删除")
+
+
+@router.get("/{node_id}/versions", response_model=ApiResponse)
+async def list_versions(
+    node_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[NodeVersionResponse]:
+    registry = NodeRegistry(db)
+    versions = await registry.list_versions(node_id)
+    return ApiResponse(data=[NodeVersionResponse.model_validate(v).model_dump() for v in versions])
+
+
+@router.post(
+    "/{node_id}/versions",
+    status_code=status.HTTP_201_CREATED,
+    summary="发布新版本",
+    description="发布新版本时自动运行兼容性检查，结果附加在响应的 `compatibility` 字段中。",
+)
+async def create_version(
+    node_id: uuid.UUID,
+    payload: NodeVersionCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    registry = NodeRegistry(db)
+
+    # Run compatibility check against current default version
+    compatibility: dict = {"checked": False}
+    current_default = await registry.get_version(node_id)
+    if current_default is not None:
+        checker = VersionCompatibilityChecker()
+        is_compatible, issues = checker.check_compatibility(
+            current_default.input_schema, payload.input_schema
+        )
+        has_new_features = bool(
+            set(payload.input_schema.get("properties", {}).keys())
+            - set(current_default.input_schema.get("properties", {}).keys())
+        )
+        suggested = checker.suggest_version_bump(
+            current_default.version, is_compatible, has_new_features
+        )
+        compatibility = {
+            "checked": True,
+            "is_compatible": is_compatible,
+            "breaking_changes": [i for i in issues if i.startswith("BREAKING")],
+            "warnings": [i for i in issues if i.startswith("WARNING")],
+            "suggested_version": suggested,
+        }
+
+    try:
+        version = await registry.create_version(node_id, payload, owner=current_user)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+    resp = NodeVersionResponse.model_validate(version)
+    # Attach compatibility info via model extra
+    resp_dict = resp.model_dump()
+    resp_dict["compatibility"] = compatibility
+    return ApiResponse(data=resp_dict)
+
+
+@router.post(
+    "/{node_id}/versions/{version}/set-default",
+    summary="版本回滚",
+    description="将指定版本设为该 Node 的默认版本（版本回滚）。",
+    responses={
+        403: {"description": "非 Node 所有者"},
+        404: {"description": "Node 或版本不存在"},
+    },
+)
+async def set_default_version(
+    node_id: uuid.UUID,
+    version: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    node = await NodeRegistry(db).get_node(node_id)
+    if node is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Node not found")
+    if node.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
+
+    target = await db.execute(
+        select(NodeVersion).where(
+            NodeVersion.node_id == node_id, NodeVersion.version == version
+        )
+    )
+    target_version = target.scalar_one_or_none()
+    if target_version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+
+    # Reset all versions' is_default, then set the target
+    await db.execute(
+        update(NodeVersion).where(NodeVersion.node_id == node_id).values(is_default=False)
+    )
+    await db.execute(
+        update(NodeVersion)
+        .where(NodeVersion.node_id == node_id, NodeVersion.version == version)
+        .values(is_default=True)
+    )
+    await db.commit()
+
+    return ApiResponse(data={"node_id": str(node_id), "default_version": version})
+
+
+@router.post(
+    "/{node_id}/versions/{version}/deprecate",
+    summary="弃用版本",
+    description="将指定版本标记为 deprecated。不允许弃用当前默认版本。",
+    responses={
+        400: {"description": "不允许弃用当前默认版本"},
+        403: {"description": "非 Node 所有者"},
+        404: {"description": "Node 或版本不存在"},
+    },
+)
+async def deprecate_version(
+    node_id: uuid.UUID,
+    version: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    node = await NodeRegistry(db).get_node(node_id)
+    if node is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Node not found")
+    if node.owner_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
+
+    target = await db.execute(
+        select(NodeVersion).where(
+            NodeVersion.node_id == node_id, NodeVersion.version == version
+        )
+    )
+    target_version = target.scalar_one_or_none()
+    if target_version is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+    if target_version.is_default:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot deprecate the current default version. Set another version as default first.",
+        )
+
+    await db.execute(
+        update(NodeVersion)
+        .where(NodeVersion.node_id == node_id, NodeVersion.version == version)
+        .values(is_deprecated=True)
+    )
+    await db.commit()
+
+    return ApiResponse(data={"node_id": str(node_id), "version": version, "status": "deprecated"})
+
+
+@router.get(
+    "/{node_id}/changelog",
+    summary="版本变更记录",
+    description="返回该 Node 所有版本的发布记录，按版本发布时间倒序排列。",
+)
+async def get_changelog(
+    node_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    node = await NodeRegistry(db).get_node(node_id)
+    if node is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Node not found")
+
+    result = await db.execute(
+        select(NodeVersion)
+        .where(NodeVersion.node_id == node_id)
+        .order_by(NodeVersion.created_at.desc())
+    )
+    versions = list(result.scalars().all())
+    return ApiResponse(data=[
+        {
+            "version": v.version,
+            "created_at": v.created_at.isoformat(),
+            "is_default": v.is_default,
+            "is_deprecated": v.is_deprecated,
+            "changelog": v.changelog,
+        }
+        for v in versions
+    ])

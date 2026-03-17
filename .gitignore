@@ -1,0 +1,30 @@
+# IDE
+.idea/
+*.iml
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+*.egg
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Environment files (contains sensitive credentials, do NOT commit)
+.env
+**/.env
+# Keep .env.example files tracked
+!.env.example
+!**/.env.example
+
+# OS
+.DS_Store
+Thumbs.db
