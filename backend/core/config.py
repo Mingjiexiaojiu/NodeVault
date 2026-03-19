@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     meilisearch_url: str = "http://localhost:7700"
     meilisearch_api_key: str | None = None
 
+    # Credential Vault
+    credential_encrypt_key: str | None = None
+    allowed_private_cidrs: str = ""  # comma-separated CIDRs, e.g. "10.0.0.0/8,172.16.0.0/12"
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "json"

@@ -9,7 +9,7 @@ from backend.database.base import Base
 
 # Import all models so autogenerate can detect all tables
 import backend.models.user  # noqa: F401
-import backend.models.namespace  # noqa: F401
+import backend.models.namespace  # noqa: F401  (includes NamespaceMember)
 import backend.models.node  # noqa: F401
 
 config = context.config

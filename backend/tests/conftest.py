@@ -72,7 +72,7 @@ async def auth_client(client: AsyncClient):
         json={"email": user_data["email"], "password": user_data["password"]},
     )
     assert login.status_code == 200, login.text
-    token = login.json()["access_token"]
+    token = login.json()["data"]["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
     return client, headers, user_data
 

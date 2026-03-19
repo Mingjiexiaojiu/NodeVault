@@ -17,10 +17,7 @@
       <div class="text-center mb-8">
         <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
           style="background: linear-gradient(135deg, #6366f1, #8b5cf6)">
-          <svg class="w-7 h-7 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round"
-              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V11" />
-          </svg>
+          <img src="/nodevault logo.png" class="w-9 h-9 object-contain" style="filter: brightness(0) invert(1)" />
         </div>
         <h1 class="text-3xl font-extrabold tracking-tight"
           style="background: linear-gradient(135deg, #6366f1, #8b5cf6); -webkit-background-clip: text; -webkit-text-fill-color: transparent">
@@ -134,9 +131,6 @@
 import { reactive, ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import BaseInput from '@/components/BaseInput.vue'
-import BaseButton from '@/components/BaseButton.vue'
-
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()

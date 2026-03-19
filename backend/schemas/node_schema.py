@@ -1,4 +1,5 @@
 ﻿import re
+import uuid
 from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -55,6 +56,8 @@ class NodeSchemaBase(BaseModel):
     tags: list[str] = Field(default_factory=list)
     category: str | None = None
     keywords: list[str] = Field(default_factory=list)
+    skill_id: uuid.UUID | None = None
+    usage_hint: str | None = Field(default=None, max_length=500)
 
     # Ownership
     author: str | None = None

@@ -19,6 +19,8 @@ class NodeUpdate(BaseModel):
     category: str | None = None
     visibility: NodeVisibility | None = None
     status: NodeStatus | None = None
+    skill_id: uuid.UUID | None = None
+    usage_hint: str | None = None
 
 
 class NodeResponse(BaseModel):
@@ -31,8 +33,16 @@ class NodeResponse(BaseModel):
     status: NodeStatus
     visibility: NodeVisibility
     namespace_id: uuid.UUID
+    namespace_slug: str | None = None
     owner_id: uuid.UUID
+    owner_username: str | None = None
     tags: list[str]
+    source_credential_id: uuid.UUID | None = None
+    source_path: str | None = None
+    source_service_name: str | None = None
+    skill_id: uuid.UUID | None = None
+    usage_hint: str | None = None
+    skill_name: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -46,6 +56,13 @@ class NodeVersionCreate(BaseModel):
     runtime_config: dict[str, Any]
     changelog: str | None = None
     is_default: bool = False
+
+
+class NodeVersionUpdate(BaseModel):
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    runtime_config: dict[str, Any] | None = None
+    changelog: str | None = None
 
 
 class NodeVersionResponse(BaseModel):

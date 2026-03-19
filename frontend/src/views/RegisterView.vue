@@ -56,7 +56,7 @@
                     d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
-              <input v-model="form.username" type="text" autocomplete="username" placeholder="johndoe"
+              <input v-model="form.username" type="text" autocomplete="username" placeholder="用户名（支持中文、字母、数字）"
                 :class="['w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2',
                   errors.username ? 'border-red-300 focus:ring-red-400' : 'border-gray-200 focus:ring-indigo-400 focus:border-indigo-400']" />
             </div>

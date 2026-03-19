@@ -1,0 +1,359 @@
+"""Service discovery & batch import API endpoints."""
+
+from __future__ import annotations
+
+import json
+import uuid as uuid_module
+from dataclasses import asdict
+from datetime import datetime
+from typing import Any
+
+import yaml
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from backend.auth.deps import get_current_user
+from backend.core.openapi_mapper import parse_operations
+from backend.core.probe import probe_spec, probe_with_auth, _parse_spec
+from backend.core.registry import NodeRegistry
+from backend.database.session import get_db
+from backend.models.discovery import DiscoverySession
+from backend.models.namespace import Namespace, NamespaceMember
+from backend.models.node import Node, NodeTag, NodeVersion
+from backend.models.user import User
+from backend.schemas.discovery import (
+    BatchImportRequest,
+    BatchImportResponse,
+    BatchImportResultItem,
+    DiscoverySessionCreate,
+    DiscoverySessionDetail,
+    DiscoverySessionSchema,
+    DiscoverySessionUpdate,
+    LinkedNodeSchema,
+    NodeDraftListResponse,
+    NodeDraftSchema,
+    ProbeAttemptSchema,
+    ProbeAuthConfig,
+    ProbeRequest,
+    ProbeResultSchema,
+)
+
+router = APIRouter(prefix="/discovery", tags=["discovery"])
+
+
+def _drafts_to_response(base_url: str, drafts: list) -> NodeDraftListResponse:
+    return NodeDraftListResponse(
+        base_url=base_url,
+        drafts=[
+            NodeDraftSchema(
+                suggested_name=d.suggested_name,
+                display_name=d.display_name,
+                description=d.description,
+                endpoint=d.endpoint,
+                method=d.method,
+                input_schema=d.input_schema,
+                output_schema=d.output_schema,
+                category=d.category,
+                tags=d.tags,
+                selected=d.selected,
+            )
+            for d in drafts
+        ],
+    )
+
+
+@router.post("/probe", response_model=ProbeResultSchema | NodeDraftListResponse)
+async def probe_openapi(
+    body: ProbeRequest,
+    user: User = Depends(get_current_user),
+):
+    """Probe a base URL for an OpenAPI spec."""
+    result = await probe_spec(body.base_url, probe_paths=body.probe_paths)
+
+    if result.found and result.spec_dict:
+        drafts = parse_operations(result.spec_dict)
+        return _drafts_to_response(result.base_url, drafts)
+
+    return ProbeResultSchema(
+        base_url=result.base_url,
+        found=result.found,
+        spec_url=result.spec_url,
+        needs_auth=result.needs_auth,
+        error=result.error,
+        attempts=[
+            ProbeAttemptSchema(
+                path=a.path, status=a.status, success=a.success, error=a.error
+            )
+            for a in result.attempts
+        ],
+    )
+
+
+@router.post("/probe-with-auth", response_model=ProbeResultSchema | NodeDraftListResponse)
+async def probe_openapi_with_auth(
+    body: ProbeAuthConfig,
+    user: User = Depends(get_current_user),
+):
+    """Probe a base URL after authenticating."""
+    result = await probe_with_auth(
+        base_url=body.base_url,
+        login_endpoint=body.login_endpoint,
+        login_method=body.login_method,
+        login_body=body.login_body,
+        token_json_path=body.token_json_path,
+        probe_paths=body.probe_paths,
+    )
+
+    if result.found and result.spec_dict:
+        drafts = parse_operations(result.spec_dict)
+        return _drafts_to_response(result.base_url, drafts)
+
+    return ProbeResultSchema(
+        base_url=result.base_url,
+        found=result.found,
+        spec_url=result.spec_url,
+        needs_auth=result.needs_auth,
+        error=result.error,
+        attempts=[
+            ProbeAttemptSchema(
+                path=a.path, status=a.status, success=a.success, error=a.error
+            )
+            for a in result.attempts
+        ],
+    )
+
+
+@router.post("/upload-spec", response_model=NodeDraftListResponse)
+async def upload_spec(
+    file: UploadFile = File(...),
+    user: User = Depends(get_current_user),
+):
+    """Upload an OpenAPI spec file (JSON/YAML) and parse it."""
+    content = await file.read()
+    if len(content) > 10 * 1024 * 1024:  # 10 MB limit
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+
+    text = content.decode("utf-8")
+    spec = _parse_spec(text)
+    if not spec:
+        raise HTTPException(
+            status_code=400,
+            detail="Could not parse file as OpenAPI spec (JSON/YAML)",
+        )
+
+    drafts = parse_operations(spec)
+    base_url = ""
+    servers = spec.get("servers", [])
+    if servers and isinstance(servers[0], dict):
+        base_url = servers[0].get("url", "")
+
+    return _drafts_to_response(base_url, drafts)
+
+
+@router.post("/import", response_model=BatchImportResponse)
+async def batch_import_nodes(
+    body: BatchImportRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Batch create Nodes from discovery results. Atomic transaction."""
+    base_url = body.base_url.rstrip("/")
+
+    # Build items list for registry (includes base_url for endpoint construction)
+    items = [
+        {
+            "name": item.name,
+            "display_name": item.display_name,
+            "description": item.description,
+            "endpoint": item.endpoint,
+            "method": item.method,
+            "base_url": base_url,
+            "input_schema": item.input_schema,
+            "output_schema": item.output_schema,
+            "category": item.category,
+            "tags": item.tags,
+            "type": "tool",
+            "visibility": body.visibility,
+        }
+        for item in body.items
+    ]
+
+    # Build source_path_map: item.name → item.source_path (or endpoint path as fallback)
+    source_path_map = {
+        item.name: (item.source_path if item.source_path is not None else item.endpoint)
+        for item in body.items
+    }
+
+    registry = NodeRegistry(db)
+    try:
+        nodes = await registry.batch_register(
+            items=items,
+            namespace_id=body.namespace_id,
+            owner=user,
+            credential_id=body.credential_id,
+            source_path_map=source_path_map,
+            discovery_session_id=body.session_id,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    # Update discovery session if provided
+    if body.session_id:
+        session_result = await db.execute(
+            select(DiscoverySession).where(
+                DiscoverySession.id == body.session_id,
+                DiscoverySession.user_id == user.id,
+            )
+        )
+        sess = session_result.scalar_one_or_none()
+        if sess:
+            sess.status = "completed"
+            sess.imported_count = (sess.imported_count or 0) + len(nodes)
+            sess.completed_at = datetime.utcnow()
+            await db.commit()
+
+    results = [BatchImportResultItem(name=n.name, node_id=n.id) for n in nodes]
+    return BatchImportResponse(imported=len(results), nodes=results)
+
+
+@router.get("/imported")
+async def get_imported_paths(
+    credential_id: uuid_module.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return the source_path values of all nodes imported from a given service credential."""
+    result = await db.execute(
+        select(Node.source_path)
+        .where(
+            Node.source_credential_id == credential_id,
+            Node.source_path.isnot(None),
+        )
+    )
+    paths = [row[0] for row in result.fetchall()]
+    return {"credential_id": str(credential_id), "imported_paths": paths}
+
+
+# ---------- Discovery Session CRUD ----------
+
+
+@router.post("/sessions", response_model=DiscoverySessionSchema, status_code=status.HTTP_201_CREATED)
+async def create_session(
+    body: DiscoverySessionCreate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a new discovery session (status: probing)."""
+    sess = DiscoverySession(
+        user_id=user.id,
+        base_url=body.base_url,
+        source=body.source,
+        status="probing",
+    )
+    db.add(sess)
+    await db.commit()
+    await db.refresh(sess)
+    return sess
+
+
+@router.patch("/sessions/{session_id}", response_model=DiscoverySessionSchema)
+async def update_session(
+    session_id: uuid_module.UUID,
+    body: DiscoverySessionUpdate,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update session status / metadata."""
+    result = await db.execute(
+        select(DiscoverySession).where(
+            DiscoverySession.id == session_id,
+            DiscoverySession.user_id == user.id,
+        )
+    )
+    sess = result.scalar_one_or_none()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if body.status is not None:
+        sess.status = body.status
+    if body.spec_url is not None:
+        sess.spec_url = body.spec_url
+    if body.total_operations is not None:
+        sess.total_operations = body.total_operations
+    if body.imported_count is not None:
+        sess.imported_count = body.imported_count
+    if body.completed_at is not None:
+        sess.completed_at = body.completed_at
+
+    await db.commit()
+    await db.refresh(sess)
+    return sess
+
+
+@router.get("/sessions", response_model=list[DiscoverySessionSchema])
+async def list_sessions(
+    page: int = 1,
+    page_size: int = 20,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List discovery sessions for the current user, newest first."""
+    from sqlalchemy import desc
+
+    offset = (page - 1) * page_size
+    result = await db.execute(
+        select(DiscoverySession)
+        .where(DiscoverySession.user_id == user.id)
+        .order_by(desc(DiscoverySession.created_at))
+        .limit(page_size)
+        .offset(offset)
+    )
+    return result.scalars().all()
+
+
+@router.get("/sessions/{session_id}", response_model=DiscoverySessionDetail)
+async def get_session(
+    session_id: uuid_module.UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get session details including linked nodes."""
+    result = await db.execute(
+        select(DiscoverySession).where(
+            DiscoverySession.id == session_id,
+            DiscoverySession.user_id == user.id,
+        )
+    )
+    sess = result.scalar_one_or_none()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    nodes_result = await db.execute(
+        select(Node).where(Node.discovery_session_id == session_id)
+    )
+    nodes = nodes_result.scalars().all()
+
+    return DiscoverySessionDetail(
+        id=sess.id,
+        base_url=sess.base_url,
+        source=sess.source,
+        status=sess.status,
+        spec_url=sess.spec_url,
+        total_operations=sess.total_operations,
+        imported_count=sess.imported_count,
+        created_at=sess.created_at,
+        completed_at=sess.completed_at,
+        nodes=[
+            LinkedNodeSchema(
+                id=n.id,
+                name=n.name,
+                display_name=n.display_name,
+                source_path=n.source_path,
+                status=n.status,
+            )
+            for n in nodes
+        ],
+    )

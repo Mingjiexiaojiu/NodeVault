@@ -44,6 +44,15 @@ export interface NodeItem {
   category: string
   tags: string[]
   owner_id: string
+  owner_username: string | null
+  namespace_id: string
+  namespace_slug: string | null
+  source_credential_id: string | null
+  source_path: string | null
+  source_service_name: string | null
+  skill_id: string | null
+  usage_hint: string | null
+  skill_name: string | null
   created_at: string
   updated_at: string
 }
@@ -69,6 +78,7 @@ export interface NodeListParams {
   page_size?: number
   type?: NodeType
   status?: NodeStatus
+  mine?: boolean
 }
 
 export interface PagedResponse<T> {
@@ -86,6 +96,8 @@ export interface CreateNodePayload {
   category?: string
   tags?: string[]
   version?: string
+  skill_id?: string | null
+  usage_hint?: string | null
   runtime: {
     type: string
     endpoint: string
@@ -128,6 +140,8 @@ export interface UpdateNodePayload {
   status?: NodeStatus
   category?: string
   tags?: string[]
+  skill_id?: string | null
+  usage_hint?: string | null
 }
 
 export const listNodes = (params?: NodeListParams) =>
@@ -143,11 +157,24 @@ export const updateNode = (id: string, payload: UpdateNodePayload) =>
 
 export const deleteNode = (id: string) => http.delete(`/nodes/${id}`)
 
+export const deleteVersion = (nodeId: string, version: string) =>
+  http.delete(`/nodes/${nodeId}/versions/${version}`)
+
 export const listVersions = (id: string) =>
   http.get<NodeVersion[]>(`/nodes/${id}/versions`)
 
+export interface NodeVersionUpdate {
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+  runtime_config?: Record<string, unknown>
+  changelog?: string
+}
+
 export const createVersion = (nodeId: string, payload: NodeVersionCreate) =>
   http.post<NodeVersion>(`/nodes/${nodeId}/versions`, payload)
+
+export const updateVersion = (nodeId: string, version: string, payload: NodeVersionUpdate) =>
+  http.patch<NodeVersion>(`/nodes/${nodeId}/versions/${encodeURIComponent(version)}`, payload)
 
 export const setDefaultVersion = (nodeId: string, version: string) =>
   http.post(`/nodes/${nodeId}/versions/${encodeURIComponent(version)}/set-default`)

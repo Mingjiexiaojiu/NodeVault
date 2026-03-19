@@ -2,30 +2,39 @@
   <div>
     <!-- 标题栏 -->
     <div class="flex items-center justify-between mb-6">
-      <h1 class="text-2xl font-bold text-gray-900">节点管理</h1>
+      <div>
+        <h1 class="text-xl font-semibold text-gray-900">节点管理</h1>
+        <p class="text-sm text-gray-400 mt-0.5">管理所有注册的 AI 能力节点</p>
+      </div>
       <RouterLink to="/nodes/new">
-        <BaseButton>注册新节点</BaseButton>
+        <button class="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-sm shadow-indigo-200">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+          </svg>
+          注册新节点
+        </button>
       </RouterLink>
     </div>
 
     <!-- 筛选栏 -->
-    <div class="bg-white rounded-xl border border-gray-200 p-4 mb-4 flex flex-wrap gap-4">
-      <div class="flex items-center gap-2">
-        <label class="text-sm text-gray-600">类型</label>
+    <div class="flex flex-wrap items-center gap-3 mb-5 bg-white rounded-2xl border border-gray-100 px-5 py-3.5" style="box-shadow: 0 1px 3px rgba(0,0,0,0.03)">
+      <span class="text-xs font-medium text-gray-400 uppercase tracking-wide mr-1">筛选</span>
+      <div class="flex items-center gap-1.5">
+        <label class="text-xs text-gray-500">类型</label>
         <select
           v-model="filter.type"
-          class="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="text-sm border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
           @change="fetchNodes"
         >
           <option value="">全部</option>
           <option v-for="t in nodeTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
         </select>
       </div>
-      <div class="flex items-center gap-2">
-        <label class="text-sm text-gray-600">状态</label>
+      <div class="flex items-center gap-1.5">
+        <label class="text-xs text-gray-500">状态</label>
         <select
           v-model="filter.status"
-          class="text-sm border border-gray-300 rounded-md px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          class="text-sm border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
           @change="fetchNodes"
         >
           <option value="">全部</option>
@@ -35,7 +44,7 @@
     </div>
 
     <!-- 节点表格 -->
-    <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+    <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden" style="box-shadow: 0 1px 3px rgba(0,0,0,0.04)">
       <div v-if="loading" class="p-6 space-y-3">
         <div v-for="i in 5" :key="i" class="h-12 bg-gray-100 rounded animate-pulse" />
       </div>
@@ -50,20 +59,21 @@
       </EmptyState>
 
       <table v-else class="w-full text-sm">
-        <thead class="bg-gray-50 border-b border-gray-200">
+        <thead class="bg-gray-50/80 border-b border-gray-100">
           <tr>
-            <th class="px-6 py-3 text-left font-medium text-gray-500">名称</th>
-            <th class="px-6 py-3 text-left font-medium text-gray-500">类型</th>
-            <th class="px-6 py-3 text-left font-medium text-gray-500">状态</th>
-            <th class="px-6 py-3 text-left font-medium text-gray-500">分类</th>
-            <th class="px-6 py-3 text-left font-medium text-gray-500">创建时间</th>
+            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">名称</th>
+            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">类型</th>
+            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">状态</th>
+            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">归属</th>
+            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">创建时间</th>
+            <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">操作</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
           <tr
             v-for="node in nodes"
             :key="node.id"
-            class="hover:bg-gray-50 cursor-pointer transition-colors"
+            class="hover:bg-indigo-50/40 cursor-pointer transition-colors group"
             @click="$router.push(`/nodes/${node.id}`)"
           >
             <td class="px-6 py-4">
@@ -72,7 +82,12 @@
             </td>
             <td class="px-6 py-4"><TypeBadge :type="node.type" /></td>
             <td class="px-6 py-4"><StatusBadge :status="node.status" /></td>
-            <td class="px-6 py-4 text-gray-500">{{ node.category || '—' }}</td>
+            <td class="px-6 py-4">
+              <div class="flex flex-col">
+                <span class="text-xs text-indigo-600 font-medium">{{ node.namespace_slug || '—' }}</span>
+                <span class="text-xs text-gray-400">{{ node.owner_username || '—' }}</span>
+              </div>
+            </td>
             <td class="px-6 py-4 text-gray-400">{{ formatDate(node.created_at) }}</td>
           </tr>
         </tbody>
@@ -103,11 +118,46 @@
       </div>
     </div>
   </div>
+
+  <!-- 删除节点确认弹窗 -->
+  <div
+    v-if="deletingNode"
+    class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+    @click.self="deletingNode = null"
+  >
+    <div class="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md mx-4">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
+          <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-base font-semibold text-gray-900">删除节点</h3>
+          <p class="text-sm text-gray-500 mt-0.5">此操作不可撤销</p>
+        </div>
+      </div>
+      <p class="text-sm text-gray-600 mb-6">
+        确定要删除节点 <span class="font-semibold text-gray-900">{{ deletingNode.display_name || deletingNode.name }}</span> 吗？
+        删除后该节点的所有版本和调用日志将一并移除。
+      </p>
+      <div class="flex justify-end gap-3">
+        <BaseButton variant="secondary" :disabled="deletingLoading" @click="deletingNode = null">取消</BaseButton>
+        <button
+          class="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors disabled:opacity-50"
+          :disabled="deletingLoading"
+          @click="handleDeleteNode"
+        >
+          {{ deletingLoading ? '删除中...' : '确认删除' }}
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { listNodes } from '@/api/nodes'
+import { listNodes, deleteNode } from '@/api/nodes'
 import type { NodeItem, NodeType, NodeStatus } from '@/api/nodes'
 import BaseButton from '@/components/BaseButton.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -119,6 +169,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 20
 const loading = ref(true)
+const deletingNode = ref<NodeItem | null>(null)
+const deletingLoading = ref(false)
 
 const filter = reactive<{ type: NodeType | ''; status: NodeStatus | '' }>({
   type: '',
@@ -153,6 +205,7 @@ async function fetchNodes() {
     const params = {
       page: page.value,
       page_size: pageSize,
+      mine: true,
       ...(filter.type ? { type: filter.type } : {}),
       ...(filter.status ? { status: filter.status } : {}),
     }
@@ -167,6 +220,21 @@ async function fetchNodes() {
 function changePage(p: number) {
   page.value = p
   fetchNodes()
+}
+
+async function handleDeleteNode() {
+  if (!deletingNode.value) return
+  deletingLoading.value = true
+  try {
+    await deleteNode(deletingNode.value.id)
+    nodes.value = nodes.value.filter(n => n.id !== deletingNode.value!.id)
+    total.value = Math.max(0, total.value - 1)
+    deletingNode.value = null
+  } catch {
+    deletingNode.value = null
+  } finally {
+    deletingLoading.value = false
+  }
 }
 
 onMounted(fetchNodes)

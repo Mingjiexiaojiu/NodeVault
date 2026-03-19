@@ -19,6 +19,7 @@ from backend.schemas.node import (
     NodeUpdate,
     NodeVersionCreate,
     NodeVersionResponse,
+    NodeVersionUpdate,
 )
 from backend.schemas.response import ApiResponse
 
@@ -37,8 +38,16 @@ def _node_to_response(node: Node) -> NodeResponse:
         status=node.status,
         visibility=node.visibility,
         namespace_id=node.namespace_id,
+        namespace_slug=node.namespace.slug if node.namespace else None,
         owner_id=node.owner_id,
+        owner_username=node.owner.username if node.owner else None,
         tags=[t.tag for t in node.tags],
+        source_credential_id=node.source_credential_id,
+        source_path=node.source_path,
+        source_service_name=node.source_credential.name if node.source_credential else None,
+        skill_id=node.skill_id,
+        usage_hint=node.usage_hint,
+        skill_name=node.skill.name if node.skill else None,
         created_at=node.created_at,
         updated_at=node.updated_at,
     )
@@ -82,11 +91,50 @@ async def register_node(
     return ApiResponse(data=_node_to_response(node).model_dump(), message="Node 已注册")
 
 
+@router.post("/batch", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
+async def batch_create_nodes(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Batch create multiple Nodes in a single atomic transaction.
+
+    Body: { namespace_id, base_url, credential_id?, items: [{name, endpoint, method, ...}] }
+    """
+    namespace_id = payload.get("namespace_id")
+    if not namespace_id:
+        raise HTTPException(status_code=400, detail="namespace_id required")
+
+    items = payload.get("items", [])
+    if not items:
+        raise HTTPException(status_code=400, detail="items required")
+
+    registry = NodeRegistry(db)
+    try:
+        nodes = await registry.batch_register(
+            items=[{**it, "base_url": payload.get("base_url", "")} for it in items],
+            namespace_id=uuid.UUID(namespace_id),
+            owner=current_user,
+            credential_id=uuid.UUID(payload["credential_id"]) if payload.get("credential_id") else None,
+        )
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+    return ApiResponse(
+        data={"imported": len(nodes), "node_ids": [str(n.id) for n in nodes]},
+        message=f"{len(nodes)} 个 Node 批量创建成功",
+    )
+
+
 @router.get("", response_model=ApiResponse)
 async def list_nodes(
     type: str | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
     tag: str | None = Query(None),
+    mine: bool = Query(False, description="仅返回当前用户自己的节点"),
+    source_credential_id: uuid.UUID | None = Query(None, description="按来源服务过滤"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -98,6 +146,8 @@ async def list_nodes(
         type=type,
         status=status_filter,
         tag=tag,
+        mine_only=mine,
+        source_credential_id=source_credential_id,
         page=page,
         page_size=page_size,
     )
@@ -197,6 +247,7 @@ async def list_versions(
 @router.post(
     "/{node_id}/versions",
     status_code=status.HTTP_201_CREATED,
+    response_model=ApiResponse,
     summary="发布新版本",
     description="发布新版本时自动运行兼容性检查，结果附加在响应的 `compatibility` 字段中。",
 )
@@ -205,7 +256,7 @@ async def create_version(
     payload: NodeVersionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> ApiResponse:
     registry = NodeRegistry(db)
 
     # Run compatibility check against current default version
@@ -233,6 +284,8 @@ async def create_version(
 
     try:
         version = await registry.create_version(node_id, payload, owner=current_user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
 
@@ -241,6 +294,64 @@ async def create_version(
     resp_dict = resp.model_dump()
     resp_dict["compatibility"] = compatibility
     return ApiResponse(data=resp_dict)
+
+
+@router.patch(
+    "/{node_id}/versions/{version}",
+    response_model=ApiResponse,
+    summary="修改版本",
+    description="修改已有版本的 schema、runtime 配置和变更日志。",
+    responses={
+        403: {"description": "非本部门成员"},
+        404: {"description": "节点或版本不存在"},
+    },
+)
+async def update_version(
+    node_id: uuid.UUID,
+    version: str,
+    payload: NodeVersionUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ApiResponse:
+    registry = NodeRegistry(db)
+    try:
+        ver = await registry.update_version(node_id, version, payload, owner=current_user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        detail = str(exc)
+        code = status.HTTP_404_NOT_FOUND if "不存在" in detail else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=code, detail=detail)
+    return ApiResponse(data=NodeVersionResponse.model_validate(ver).model_dump())
+
+
+@router.delete(
+    "/{node_id}/versions/{version}",
+    response_model=ApiResponse,
+    summary="删除版本",
+    description="永久删除指定版本。不允许删除当前默认版本；只有节点所有者可操作。",
+    responses={
+        400: {"description": "不允许删除默认版本"},
+        403: {"description": "非节点所有者"},
+        404: {"description": "节点或版本不存在"},
+    },
+)
+async def delete_version(
+    node_id: uuid.UUID,
+    version: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ApiResponse:
+    registry = NodeRegistry(db)
+    try:
+        await registry.delete_version(node_id, version, owner=current_user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
+    except ValueError as exc:
+        detail = str(exc)
+        code = status.HTTP_404_NOT_FOUND if "不存在" in detail else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=code, detail=detail)
+    return ApiResponse(message=f"版本 {version} 已删除")
 
 
 @router.post(
@@ -258,11 +369,14 @@ async def set_default_version(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    node = await NodeRegistry(db).get_node(node_id)
+    registry = NodeRegistry(db)
+    node = await registry.get_node(node_id)
     if node is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Node not found")
-    if node.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
+    try:
+        await registry._check_namespace_permission(node, current_user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
     target = await db.execute(
         select(NodeVersion).where(
@@ -271,7 +385,7 @@ async def set_default_version(
     )
     target_version = target.scalar_one_or_none()
     if target_version is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"版本 {version} 不存在")
 
     # Reset all versions' is_default, then set the target
     await db.execute(
@@ -303,11 +417,14 @@ async def deprecate_version(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    node = await NodeRegistry(db).get_node(node_id)
+    registry = NodeRegistry(db)
+    node = await registry.get_node(node_id)
     if node is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Node not found")
-    if node.owner_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
+    try:
+        await registry._check_namespace_permission(node, current_user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
 
     target = await db.execute(
         select(NodeVersion).where(
@@ -316,11 +433,11 @@ async def deprecate_version(
     )
     target_version = target.scalar_one_or_none()
     if target_version is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"版本 {version} 不存在")
     if target_version.is_default:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Cannot deprecate the current default version. Set another version as default first.",
+            detail="不能弃用当前默认版本，请先将其他版本设为默认版本后再操作。",
         )
 
     await db.execute(

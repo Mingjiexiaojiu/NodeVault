@@ -29,6 +29,16 @@ http.interceptors.response.use(
     return response
   },
   (error) => {
+    // 统一提取错误消息：后端错误格式为 { error: { message } }，暂存为 error.uiMessage 供视图层直接使用
+    if (error.response?.data) {
+      const data = error.response.data
+      error.uiMessage =
+        data?.error?.message ||
+        data?.detail ||
+        data?.message ||
+        null
+    }
+
     if (error.response?.status === 401) {
       // 避免在登录请求本身失败时触发 session expired 弹窗
       const isLoginRequest = error.config?.url?.includes('/auth/login')

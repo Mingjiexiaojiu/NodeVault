@@ -130,6 +130,34 @@
                 class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
               />
             </div>
+
+            <!-- 技能集 -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">技能集</label>
+              <select
+                v-model="form.skill_id"
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors appearance-none cursor-pointer"
+              >
+                <option value="">不归属任何技能集</option>
+                <option v-for="sk in skills" :key="sk.id" :value="sk.id">
+                  {{ sk.display_name || sk.name }}
+                </option>
+              </select>
+              <p class="text-xs text-gray-400">将节点归类到某个 Agent 技能集，方便 AI 发现和调用</p>
+            </div>
+
+            <!-- 用途提示 -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">用途提示 (usage_hint)</label>
+              <textarea
+                v-model="form.usage_hint"
+                placeholder="向 AI 解释该节点的具体应用场景，例如：用于分析信贷申请人的收入流水..."
+                rows="2"
+                maxlength="500"
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
+              />
+              <p class="text-xs text-gray-400 text-right">{{ form.usage_hint.length }}/500</p>
+            </div>
           </div>
         </section>
 
@@ -281,10 +309,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createNode } from '@/api/nodes'
+import { getSkills } from '@/api/skills'
 import type { NodeType } from '@/api/nodes'
+import type { SkillItem } from '@/api/skills'
 import BaseButton from '@/components/BaseButton.vue'
 
 const router = useRouter()
@@ -298,6 +328,16 @@ const activeSection = ref('basic')
 
 const defaultSchema = '{\n  "type": "object",\n  "properties": {}\n}'
 
+const skills = ref<SkillItem[]>([])
+
+onMounted(async () => {
+  try {
+    skills.value = await getSkills()
+  } catch {
+    // 非关键性错误，静默处理
+  }
+})
+
 const form = reactive({
   name: '',
   version: '1.0.0',
@@ -306,6 +346,8 @@ const form = reactive({
   type: '' as NodeType | '',
   category: '',
   tagsRaw: '',
+  skill_id: '',
+  usage_hint: '',
   runtime: { type: 'http', endpoint: '', method: 'POST' },
   inputSchemaRaw: defaultSchema,
   outputSchemaRaw: defaultSchema,
@@ -396,6 +438,8 @@ async function handleSubmit() {
       type: form.type as NodeType,
       category: form.category || undefined,
       tags,
+      skill_id: form.skill_id || undefined,
+      usage_hint: form.usage_hint || undefined,
       runtime: {
         type: form.runtime.type,
         endpoint: form.runtime.endpoint,

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from backend.auth.deps import get_current_user
 from backend.core.search import NodeSearchIndex
@@ -101,15 +102,9 @@ async def reindex_nodes(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # 简单管理员校验：is_superuser 或特定用户名（可扩展）
-    if not getattr(current_user, "is_superuser", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required",
-        )
-
     result = await db.execute(
-        select(Node).where(Node.status == NodeStatus.ACTIVE.value)
+        select(Node).options(selectinload(Node.tags))
+        .where(Node.status != "archived")
     )
     nodes = list(result.scalars().all())
 
@@ -125,7 +120,9 @@ async def reindex_nodes(
                 "status": node.status,
                 "namespace_id": str(node.namespace_id),
                 "invocation_count": node.invocation_count,
-                "tags": [],
+                "tags": [t.tag for t in node.tags],
+                "created_at": node.created_at.isoformat() if node.created_at else None,
+                "updated_at": node.updated_at.isoformat() if node.updated_at else None,
             }
         )
 

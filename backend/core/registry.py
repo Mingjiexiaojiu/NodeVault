@@ -5,25 +5,63 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.models.namespace import Namespace
+from backend.models.namespace import Namespace, NamespaceMember
 from backend.models.node import Node, NodeInvocationLog, NodeTag, NodeVersion
+from backend.models.skill import Skill
 from backend.models.user import User
 from backend.schemas.enums import NodeStatus
-from backend.schemas.node import NodeCreate, NodeVersionCreate
+from backend.schemas.node import NodeCreate, NodeVersionCreate, NodeVersionUpdate
 
 
 class NodeRegistry:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def _get_namespace(self, owner: User) -> Namespace:
+    async def _get_namespace(self, owner: User, namespace_id: uuid.UUID | None = None) -> Namespace:
+        """获取命名空间。若指定了 namespace_id 则验证成员身份并返回，否则返回用户的个人命名空间。"""
+        if namespace_id:
+            result = await self.db.execute(
+                select(Namespace).where(Namespace.id == namespace_id)
+            )
+            ns = result.scalar_one_or_none()
+            if ns is None:
+                raise ValueError("指定的部门不存在")
+            # 验证成员身份
+            membership = await self.db.execute(
+                select(NamespaceMember).where(
+                    NamespaceMember.namespace_id == namespace_id,
+                    NamespaceMember.user_id == owner.id,
+                )
+            )
+            if membership.scalar_one_or_none() is None:
+                raise PermissionError("您不是该部门成员，无法在此部门下操作")
+            return ns
+        # 默认：返回用户拥有的第一个命名空间（个人命名空间）
         result = await self.db.execute(
-            select(Namespace).where(Namespace.owner_id == owner.id)
+            select(Namespace).where(Namespace.owner_id == owner.id).limit(1)
         )
         ns = result.scalar_one_or_none()
         if ns is None:
             raise ValueError(f"No namespace found for user {owner.id}")
         return ns
+
+    async def _get_user_namespace_ids(self, user: User) -> list[uuid.UUID]:
+        """获取用户所属的所有命名空间 ID（通过成员关系）"""
+        result = await self.db.execute(
+            select(NamespaceMember.namespace_id).where(NamespaceMember.user_id == user.id)
+        )
+        return list(result.scalars().all())
+
+    async def _check_namespace_permission(self, node: Node, user: User) -> None:
+        """检查用户是否是节点所属命名空间的成员（同部门成员才可写）"""
+        membership = await self.db.execute(
+            select(NamespaceMember).where(
+                NamespaceMember.namespace_id == node.namespace_id,
+                NamespaceMember.user_id == user.id,
+            )
+        )
+        if membership.scalar_one_or_none() is None:
+            raise PermissionError("无权操作此节点：仅本部门成员可修改、删除和管理版本")
 
     async def create_node(self, payload: NodeCreate, owner: User) -> Node:
         ns = await self._get_namespace(owner)
@@ -62,6 +100,92 @@ class NodeRegistry:
         await self.db.refresh(node)
         return await self.get_node(node.id)
 
+    async def batch_register(
+        self,
+        items: list[dict[str, Any]],
+        namespace_id: uuid.UUID,
+        owner: User,
+        credential_id: uuid.UUID | None = None,
+        source_path_map: dict[str, str] | None = None,
+        discovery_session_id: uuid.UUID | None = None,
+    ) -> list[Node]:
+        """Batch-create Nodes within a single transaction.
+
+        Each item dict: name, endpoint, method, base_url, display_name,
+        description, category, tags, input_schema, output_schema, visibility.
+        """
+        # Verify namespace membership
+        membership = await self.db.execute(
+            select(NamespaceMember).where(
+                NamespaceMember.namespace_id == namespace_id,
+                NamespaceMember.user_id == owner.id,
+            )
+        )
+        if membership.scalar_one_or_none() is None:
+            raise PermissionError("Not a member of this namespace")
+
+        # Check name conflicts
+        names = [it["name"] for it in items]
+        existing = await self.db.execute(
+            select(Node.name).where(
+                Node.namespace_id == namespace_id, Node.name.in_(names)
+            )
+        )
+        conflicts = set(existing.scalars().all())
+        if conflicts:
+            raise ValueError(
+                f"Node names already exist: {', '.join(sorted(conflicts))}"
+            )
+
+        created_nodes: list[Node] = []
+        for it in items:
+            base_url = it.get("base_url", "").rstrip("/")
+            endpoint_path = it.get("endpoint", "")
+            full_endpoint = f"{base_url}{endpoint_path}" if base_url else endpoint_path
+
+            rc: dict[str, Any] = {
+                "endpoint": full_endpoint,
+                "method": it.get("method", "POST"),
+            }
+            if credential_id:
+                rc["credential_id"] = str(credential_id)
+
+            node = Node(
+                name=it["name"],
+                namespace_id=namespace_id,
+                owner_id=owner.id,
+                display_name=it.get("display_name"),
+                description=it.get("description"),
+                type=it.get("type", "tool"),
+                category=it.get("category"),
+                status="active",
+                visibility=it.get("visibility", "internal"),
+                source_credential_id=credential_id,
+                source_path=source_path_map.get(it["name"]) if source_path_map else None,
+                discovery_session_id=discovery_session_id,
+            )
+            self.db.add(node)
+            await self.db.flush()
+
+            version = NodeVersion(
+                node_id=node.id,
+                version="1.0.0",
+                input_schema=it.get("input_schema", {}),
+                output_schema=it.get("output_schema", {}),
+                runtime_config=rc,
+                is_default=True,
+                created_by=owner.id,
+            )
+            self.db.add(version)
+
+            for tag_name in it.get("tags", []):
+                self.db.add(NodeTag(node_id=node.id, tag=tag_name))
+
+            created_nodes.append(node)
+
+        await self.db.commit()
+        return created_nodes
+
     async def list_nodes(
         self,
         owner: User,
@@ -70,28 +194,41 @@ class NodeRegistry:
         tag: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        mine_only: bool = False,
+        source_credential_id: uuid.UUID | None = None,
     ) -> list[Node]:
         from sqlalchemy import or_
-        ns = await self._get_namespace(owner)
-        # public/internal nodes are visible to all authenticated users; private nodes only to their owner
-        stmt = (
-            select(Node)
-            .where(
-                or_(
-                    Node.visibility == "public",
-                    Node.visibility == "internal",
-                    Node.namespace_id == ns.id,
-                )
+        ns_ids = await self._get_user_namespace_ids(owner)
+        if mine_only:
+            # 返回用户所属所有部门的节点
+            stmt = (
+                select(Node)
+                .where(Node.namespace_id.in_(ns_ids))
+                .where(Node.status != NodeStatus.ARCHIVED.value)
+                .options(selectinload(Node.tags), selectinload(Node.namespace))
             )
-            .where(Node.status != NodeStatus.ARCHIVED.value)
-            .options(selectinload(Node.tags))
-        )
+        else:
+            # public/internal nodes are visible to all authenticated users; private nodes only to members
+            stmt = (
+                select(Node)
+                .where(
+                    or_(
+                        Node.visibility == "public",
+                        Node.visibility == "internal",
+                        Node.namespace_id.in_(ns_ids),
+                    )
+                )
+                .where(Node.status != NodeStatus.ARCHIVED.value)
+                .options(selectinload(Node.tags), selectinload(Node.namespace))
+            )
         if type:
             stmt = stmt.where(Node.type == type)
         if status:
             stmt = stmt.where(Node.status == status)
         if tag:
             stmt = stmt.join(NodeTag).where(NodeTag.tag == tag)
+        if source_credential_id:
+            stmt = stmt.where(Node.source_credential_id == source_credential_id)
 
         stmt = stmt.offset((page - 1) * page_size).limit(page_size)
         result = await self.db.execute(stmt)
@@ -101,7 +238,11 @@ class NodeRegistry:
         result = await self.db.execute(
             select(Node)
             .where(Node.id == node_id)
-            .options(selectinload(Node.tags), selectinload(Node.versions))
+            .options(
+                selectinload(Node.tags),
+                selectinload(Node.versions),
+                selectinload(Node.namespace),
+            )
         )
         return result.scalar_one_or_none()
 
@@ -109,25 +250,43 @@ class NodeRegistry:
         node = await self.get_node(node_id)
         if node is None:
             raise ValueError("Node not found")
-        if node.owner_id != owner.id:
-            raise PermissionError("Not allowed to update this node")
+        await self._check_namespace_permission(node, owner)
 
-        allowed = {"display_name", "description", "category", "visibility", "status"}
+        allowed = {"display_name", "description", "category", "visibility", "status", "skill_id", "usage_hint"}
+        stale_triggers = {"skill_id", "usage_hint", "description"}
+        old_skill_id = node.skill_id
+        changed_stale = False
         for field, value in payload.items():
             if field in allowed and value is not None:
                 # Convert enum values to strings for storage
                 setattr(node, field, value.value if hasattr(value, "value") else value)
+                if field in stale_triggers:
+                    changed_stale = True
 
         await self.db.commit()
         await self.db.refresh(node)
+
+        # Trigger is_stale on affected Skill(s)
+        if changed_stale:
+            skill_ids_to_mark = set()
+            if old_skill_id:
+                skill_ids_to_mark.add(old_skill_id)
+            if node.skill_id:
+                skill_ids_to_mark.add(node.skill_id)
+            for sid in skill_ids_to_mark:
+                await self.db.execute(
+                    update(Skill).where(Skill.id == sid).values(is_stale=True)
+                )
+            if skill_ids_to_mark:
+                await self.db.commit()
+
         return await self.get_node(node_id)
 
     async def archive_node(self, node_id: uuid.UUID, owner: User) -> None:
         node = await self.get_node(node_id)
         if node is None:
-            raise ValueError("Node not found")
-        if node.owner_id != owner.id:
-            raise PermissionError("Not allowed to delete this node")
+            raise ValueError("节点不存在")
+        await self._check_namespace_permission(node, owner)
 
         await self.db.execute(
             update(Node)
@@ -147,6 +306,12 @@ class NodeRegistry:
     async def create_version(
         self, node_id: uuid.UUID, payload: NodeVersionCreate, owner: User
     ) -> NodeVersion:
+        # Check node exists and caller belongs to the same namespace
+        node = await self.get_node(node_id)
+        if node is None:
+            raise ValueError("节点不存在")
+        await self._check_namespace_permission(node, owner)
+
         # Check version uniqueness
         existing = await self.db.execute(
             select(NodeVersion).where(
@@ -179,6 +344,56 @@ class NodeRegistry:
         await self.db.commit()
         await self.db.refresh(version)
         return version
+
+    async def update_version(
+        self, node_id: uuid.UUID, version: str, payload: NodeVersionUpdate, owner: User
+    ) -> NodeVersion:
+        """修改已有版本的 schema / runtime_config / changelog。"""
+        node = await self.get_node(node_id)
+        if node is None:
+            raise ValueError("节点不存在")
+        await self._check_namespace_permission(node, owner)
+
+        result = await self.db.execute(
+            select(NodeVersion).where(
+                NodeVersion.node_id == node_id,
+                NodeVersion.version == version,
+            )
+        )
+        ver = result.scalar_one_or_none()
+        if ver is None:
+            raise ValueError(f"版本 {version} 不存在")
+
+        for field in ("input_schema", "output_schema", "runtime_config", "changelog"):
+            value = getattr(payload, field)
+            if value is not None:
+                setattr(ver, field, value)
+
+        await self.db.commit()
+        await self.db.refresh(ver)
+        return ver
+
+    async def delete_version(self, node_id: uuid.UUID, version: str, owner: User) -> None:
+        """永久删除指定版本，不允许删除当前默认版本。"""
+        node = await self.get_node(node_id)
+        if node is None:
+            raise ValueError("节点不存在")
+        await self._check_namespace_permission(node, owner)
+
+        result = await self.db.execute(
+            select(NodeVersion).where(
+                NodeVersion.node_id == node_id,
+                NodeVersion.version == version,
+            )
+        )
+        ver = result.scalar_one_or_none()
+        if ver is None:
+            raise ValueError(f"版本 {version} 不存在")
+        if ver.is_default:
+            raise ValueError("不能删除当前默认版本，请先将其他版本设为默认版本后再操作")
+
+        await self.db.delete(ver)
+        await self.db.commit()
 
     async def get_version(
         self, node_id: uuid.UUID, version: str | None = None

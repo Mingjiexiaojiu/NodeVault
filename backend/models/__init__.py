@@ -1,12 +1,25 @@
-﻿from backend.models.namespace import Namespace
+﻿from backend.models.ai_config import UserAIConfig
+from backend.models.api_key import ApiKey
+from backend.models.credential import CredentialTokenCache, ServiceCredential
+from backend.models.discovery import DiscoverySession
+from backend.models.namespace import Namespace, NamespaceMember
 from backend.models.node import Node, NodeInvocationLog, NodeTag, NodeVersion
+from backend.models.skill import Skill, SkillVersion
 from backend.models.user import User
 
 __all__ = [
     "User",
+    "UserAIConfig",
+    "ApiKey",
+    "ServiceCredential",
+    "CredentialTokenCache",
+    "DiscoverySession",
     "Namespace",
+    "NamespaceMember",
     "Node",
     "NodeVersion",
     "NodeTag",
     "NodeInvocationLog",
+    "Skill",
+    "SkillVersion",
 ]

@@ -68,7 +68,7 @@ async def invoke_node(
 
     try:
         output, latency_ms = await executor.execute(
-            node_version.runtime_config, request.input
+            node_version.runtime_config, request.input, db=db
         )
     except TimeoutError as exc:
         invoke_status = "timeout"

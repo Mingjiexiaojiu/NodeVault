@@ -2,11 +2,16 @@
   <div>
     <!-- 搜索头 -->
     <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 mb-4">搜索节点</h1>
-      <div class="flex gap-3">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 class="text-xl font-semibold text-gray-900">搜索节点</h1>
+          <p class="text-sm text-gray-400 mt-0.5">全文搜索所有注册的 AI 能力节点</p>
+        </div>
+      </div>
+      <div class="flex gap-2.5">
         <div class="relative flex-1">
-          <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none">
+            <svg class="w-4.5 h-4.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
             </svg>
           </div>
@@ -14,12 +19,14 @@
             v-model="query"
             type="text"
             placeholder="搜索节点名称、描述..."
-            class="block w-full rounded-xl border border-gray-200 bg-white pl-10 pr-4 py-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
+            class="block w-full rounded-2xl border border-gray-200 bg-white pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition-colors"
+            style="box-shadow: 0 1px 4px rgba(0,0,0,0.04)"
             @keyup.enter="doSearch(1)"
           />
         </div>
         <button
-          class="px-5 py-3 bg-indigo-600 text-white text-sm font-medium rounded-xl hover:bg-indigo-700 transition-colors shadow-sm shadow-indigo-200"
+          class="px-5 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-2xl hover:bg-indigo-700 active:scale-95 transition-all"
+          style="box-shadow: 0 4px 12px rgba(99,102,241,0.25)"
           @click="doSearch(1)"
         >
           搜索
@@ -96,7 +103,7 @@
           v-for="node in results"
           :key="node.id"
           :to="`/nodes/${node.id}`"
-          class="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-4 hover:border-indigo-200 hover:shadow-sm transition-all group"
+          class="flex items-center justify-between bg-white rounded-2xl border border-gray-100 px-5 py-4 hover:border-indigo-200 hover:shadow-sm hover:shadow-indigo-100/30 transition-all duration-150 group"
         >
           <div class="flex items-center gap-4 min-w-0">
             <TypeBadge :type="node.type" />
@@ -108,6 +115,11 @@
             </div>
           </div>
           <div class="flex items-center gap-3 shrink-0 ml-4">
+            <!-- 归属信息 -->
+            <div v-if="node.namespace_slug || node.owner_username" class="hidden md:flex items-center gap-1.5 text-xs text-gray-400">
+              <span v-if="node.namespace_slug" class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full">{{ node.namespace_slug }}</span>
+              <span v-if="node.owner_username" class="text-gray-400">{{ node.owner_username }}</span>
+            </div>
       <!-- 结果卡片中的标签改为可点击链接 -->
               <div v-if="node.tags?.length" class="hidden sm:flex gap-1">
               <RouterLink

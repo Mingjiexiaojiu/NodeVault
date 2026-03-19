@@ -42,6 +42,26 @@ class Node(Base):
         String(32), default=NodeVisibility.INTERNAL.value, nullable=False
     )
     invocation_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    source_credential_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("service_credentials.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    source_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("skills.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    usage_hint: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    discovery_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("discovery_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
@@ -49,6 +69,18 @@ class Node(Base):
 
     namespace: Mapped["Namespace"] = relationship(  # noqa: F821
         "Namespace", back_populates="nodes"
+    )
+    owner: Mapped["User"] = relationship(  # noqa: F821
+        "User", foreign_keys=[owner_id], lazy="joined",
+    )
+    source_credential: Mapped["ServiceCredential | None"] = relationship(  # noqa: F821
+        "ServiceCredential", foreign_keys=[source_credential_id], lazy="joined"
+    )
+    skill: Mapped["Skill | None"] = relationship(  # noqa: F821
+        "Skill", foreign_keys=[skill_id], back_populates="nodes", lazy="joined"
+    )
+    discovery_session: Mapped["DiscoverySession | None"] = relationship(  # noqa: F821
+        "DiscoverySession", foreign_keys=[discovery_session_id], back_populates="nodes"
     )
     versions: Mapped[list["NodeVersion"]] = relationship(
         "NodeVersion", back_populates="node", cascade="all, delete-orphan"

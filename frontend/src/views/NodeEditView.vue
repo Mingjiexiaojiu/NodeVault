@@ -64,6 +64,33 @@
               />
               <p class="text-xs text-gray-400">多个标签用英文逗号分隔</p>
             </div>
+
+            <!-- 技能集 -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">技能集</label>
+              <select
+                v-model="form.skill_id"
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors appearance-none cursor-pointer"
+              >
+                <option value="">不归属任何技能集</option>
+                <option v-for="sk in skills" :key="sk.id" :value="sk.id">
+                  {{ sk.display_name || sk.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- 用途提示 -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">用途提示 (usage_hint)</label>
+              <textarea
+                v-model="form.usage_hint"
+                placeholder="向 AI 解释该节点的具体调用场景..."
+                rows="2"
+                maxlength="500"
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
+              />
+              <p class="text-xs text-gray-400 text-right">{{ (form.usage_hint || '').length }}/500</p>
+            </div>
           </div>
 
           <!-- 状态 -->
@@ -117,7 +144,9 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getNode, updateNode } from '@/api/nodes'
+import { getSkills } from '@/api/skills'
 import type { NodeItem, NodeType, NodeStatus } from '@/api/nodes'
+import type { SkillItem } from '@/api/skills'
 import BaseButton from '@/components/BaseButton.vue'
 
 const route = useRoute()
@@ -128,6 +157,7 @@ const node = ref<NodeItem | null>(null)
 const loadingNode = ref(true)
 const saving = ref(false)
 const submitError = ref('')
+const skills = ref<SkillItem[]>([])
 
 const form = reactive({
   display_name: '',
@@ -135,6 +165,8 @@ const form = reactive({
   type: '' as NodeType,
   category: '',
   status: '' as NodeStatus,
+  skill_id: '',
+  usage_hint: '',
 })
 const tagsRaw = ref('')
 
@@ -149,7 +181,7 @@ const nodeTypes = [
   { value: 'utility', label: '实用程序' },
 ]
 
-const nodeStatuses = [
+const nodeStatuses: { value: NodeStatus; label: string; icon: string }[] = [
   { value: 'draft', label: '草稿', icon: '📝' },
   { value: 'active', label: '活跃', icon: '✅' },
   { value: 'deprecated', label: '弃用', icon: '⚠️' },
@@ -158,14 +190,20 @@ const nodeStatuses = [
 
 onMounted(async () => {
   try {
-    const res = await getNode(nodeId)
-    node.value = res.data
-    form.display_name = res.data.display_name || ''
-    form.description = res.data.description || ''
-    form.type = res.data.type
-    form.category = res.data.category || ''
-    form.status = res.data.status
-    tagsRaw.value = (res.data.tags ?? []).join(', ')
+    const [nodeRes, skillList] = await Promise.all([
+      getNode(nodeId),
+      getSkills().catch(() => [] as SkillItem[]),
+    ])
+    node.value = nodeRes.data
+    form.display_name = nodeRes.data.display_name || ''
+    form.description = nodeRes.data.description || ''
+    form.type = nodeRes.data.type
+    form.category = nodeRes.data.category || ''
+    form.status = nodeRes.data.status
+    form.skill_id = nodeRes.data.skill_id || ''
+    form.usage_hint = nodeRes.data.usage_hint || ''
+    tagsRaw.value = (nodeRes.data.tags ?? []).join(', ')
+    skills.value = skillList
   } finally {
     loadingNode.value = false
   }
@@ -185,12 +223,14 @@ async function handleSubmit() {
       type: form.type,
       category: form.category || undefined,
       status: form.status,
+      skill_id: form.skill_id || undefined,
+      usage_hint: form.usage_hint || undefined,
       tags,
     })
     router.push(`/nodes/${nodeId}`)
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { detail?: string } } }
-    submitError.value = err.response?.data?.detail ?? '保存失败，请稍后重试'
+    const err = e as { uiMessage?: string }
+    submitError.value = err.uiMessage ?? '保存失败，请稍后重试'
   } finally {
     saving.value = false
   }
