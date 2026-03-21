@@ -32,11 +32,21 @@ http.interceptors.response.use(
     // 统一提取错误消息：后端错误格式为 { error: { message } }，暂存为 error.uiMessage 供视图层直接使用
     if (error.response?.data) {
       const data = error.response.data
-      error.uiMessage =
+      const rawMsg: string | null =
         data?.error?.message ||
         data?.detail ||
         data?.message ||
         null
+      // 将服务端通用英文错误消息本地化
+      const i18n: Record<string, string> = {
+        'Internal server error': '服务器内部错误，请稍后重试',
+        'Not Found': '请求的资源不存在',
+        'Unauthorized': '请先登录',
+        'Forbidden': '无权限执行此操作',
+        'Bad Request': '请求参数有误',
+        'Method Not Allowed': '请求方式不支持',
+      }
+      error.uiMessage = (rawMsg && i18n[rawMsg]) || rawMsg
     }
 
     if (error.response?.status === 401) {

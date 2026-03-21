@@ -28,7 +28,7 @@ def create_mcp_server() -> FastMCP:
     @mcp.tool(description="List all active NodeVault nodes as tool descriptors")
     async def list_nodevault_nodes(
         tags: str = "",
-        type: str = "",
+        category: str = "",
     ) -> list[dict[str, Any]]:
         """返回所有 active Node 的 OpenAI tool 描述列表"""
         from backend.core.registry import NodeRegistry
@@ -52,7 +52,8 @@ def create_mcp_server() -> FastMCP:
                 tag_list = [t.tag for t in (node.tags or [])]
                 if tags and not any(t in tag_list for t in tags.split(",")):
                     continue
-                if type and node.type != type:
+                node_category = node.category_rel.name if node.category_rel else None
+                if category and node_category != category:
                     continue
                 nodes_data.append(exporter.export_node(
                     {

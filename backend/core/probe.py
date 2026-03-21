@@ -11,6 +11,7 @@ import httpx
 import yaml
 
 from backend.core.url_validator import SSRFError, validate_url
+from backend.schemas.enums import ProbeErrorType
 
 # Built-in probe paths, ordered by popularity
 DEFAULT_PROBE_PATHS = [
@@ -48,6 +49,7 @@ class ProbeResult:
     attempts: list[ProbeAttempt] = field(default_factory=list)
     needs_auth: bool = False
     error: str | None = None
+    error_type: ProbeErrorType | None = None
 
 
 def _is_valid_spec(data: dict[str, Any]) -> bool:
@@ -144,6 +146,7 @@ async def probe_spec(
         validate_url(base_url)
     except SSRFError as e:
         result.error = str(e)
+        result.error_type = ProbeErrorType.connection_refused
         return result
 
     headers: dict[str, str] = {"User-Agent": _USER_AGENT}
@@ -156,7 +159,8 @@ async def probe_spec(
     async with httpx.AsyncClient(timeout=_PER_PATH_TIMEOUT) as client:
         for path in paths:
             if time.monotonic() > deadline:
-                result.error = "Total probe timeout exceeded"
+                result.error = "探测总超时"
+                result.error_type = ProbeErrorType.timeout
                 break
 
             attempt = ProbeAttempt(path=path)
@@ -181,14 +185,42 @@ async def probe_spec(
 
             except httpx.TimeoutException:
                 attempt.error = "timeout"
+            except httpx.ConnectError as e:
+                err_str = str(e).lower()
+                if "name or service not known" in err_str or "getaddrinfo" in err_str or "nodename nor servname" in err_str:
+                    attempt.error = f"DNS解析失败: {e}"
+                    if result.error_type is None:
+                        result.error_type = ProbeErrorType.dns_error
+                else:
+                    attempt.error = f"连接被拒绝: {e}"
+                    if result.error_type is None:
+                        result.error_type = ProbeErrorType.connection_refused
+                all_401 = False
             except httpx.RequestError as e:
-                attempt.error = str(e)
+                err_str = str(e).lower()
+                if "ssl" in err_str or "certificate" in err_str:
+                    attempt.error = f"SSL错误: {e}"
+                    if result.error_type is None:
+                        result.error_type = ProbeErrorType.ssl_error
+                else:
+                    attempt.error = str(e)
                 all_401 = False
 
             result.attempts.append(attempt)
 
     if all_401 and result.attempts:
         result.needs_auth = True
+
+    # If spec not found after all attempts and no other error_type set
+    if not result.found and result.error_type is None:
+        # Check if all attempts were timeouts
+        all_timeout = all(a.error == "timeout" for a in result.attempts) if result.attempts else False
+        if all_timeout:
+            result.error_type = ProbeErrorType.timeout
+            result.error = result.error or "所有探测路径均超时"
+        elif result.attempts:
+            result.error_type = ProbeErrorType.spec_not_found
+            result.error = result.error or "未找到 OpenAPI 规范文档"
 
     return result
 
@@ -212,7 +244,7 @@ async def probe_with_auth(
     try:
         validate_url(base_url)
     except SSRFError as e:
-        return ProbeResult(base_url=base_url, error=str(e))
+        return ProbeResult(base_url=base_url, error=str(e), error_type=ProbeErrorType.connection_refused)
 
     headers = {"User-Agent": _USER_AGENT}
     login_url = f"{base_url}{login_endpoint}"
@@ -229,21 +261,23 @@ async def probe_with_auth(
         except httpx.HTTPStatusError as e:
             return ProbeResult(
                 base_url=base_url,
-                error=f"Login failed: HTTP {e.response.status_code}",
+                error=f"登录失败: HTTP {e.response.status_code}",
+                error_type=ProbeErrorType.connection_refused,
             )
         except httpx.RequestError as e:
-            return ProbeResult(base_url=base_url, error=f"Login request failed: {e}")
+            return ProbeResult(base_url=base_url, error=f"登录请求失败: {e}", error_type=ProbeErrorType.connection_refused)
 
         try:
             body = resp.json()
         except Exception:
-            return ProbeResult(base_url=base_url, error="Login response is not JSON")
+            return ProbeResult(base_url=base_url, error="登录响应不是 JSON 格式", error_type=ProbeErrorType.parse_error)
 
         token = _extract_token_from_response(body, token_json_path)
         if not token:
             return ProbeResult(
                 base_url=base_url,
-                error="Could not extract token from login response",
+                error="无法从登录响应中提取 Token",
+                error_type=ProbeErrorType.parse_error,
             )
 
     return await probe_spec(base_url, auth_token=token, probe_paths=probe_paths)

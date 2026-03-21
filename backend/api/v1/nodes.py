@@ -13,6 +13,7 @@ from backend.database.session import get_db
 from backend.models.node import Node, NodeVersion
 from backend.models.user import User
 from backend.schemas.node import (
+    CategoryBrief,
     NodeCreate,
     NodeDetailResponse,
     NodeResponse,
@@ -28,13 +29,16 @@ router = APIRouter(prefix="/nodes", tags=["Nodes"])
 
 
 def _node_to_response(node: Node) -> NodeResponse:
+    cat_brief = None
+    if node.category_rel:
+        cat_brief = CategoryBrief(id=node.category_rel.id, display_name=node.category_rel.display_name)
     return NodeResponse(
         id=node.id,
         name=node.name,
         display_name=node.display_name,
         description=node.description,
-        type=node.type,
-        category=node.category,
+        category_id=node.category_id,
+        category=cat_brief,
         status=node.status,
         visibility=node.visibility,
         namespace_id=node.namespace_id,
@@ -45,9 +49,6 @@ def _node_to_response(node: Node) -> NodeResponse:
         source_credential_id=node.source_credential_id,
         source_path=node.source_path,
         source_service_name=node.source_credential.name if node.source_credential else None,
-        skill_id=node.skill_id,
-        usage_hint=node.usage_hint,
-        skill_name=node.skill.name if node.skill else None,
         created_at=node.created_at,
         updated_at=node.updated_at,
     )
@@ -78,7 +79,7 @@ async def register_node(
                 "name": node.name,
                 "display_name": node.display_name,
                 "description": node.description,
-                "type": node.type,
+                "category": node.category_rel.display_name if node.category_rel else "",
                 "status": node.status,
                 "namespace_id": str(node.namespace_id),
                 "invocation_count": node.invocation_count,
@@ -130,7 +131,7 @@ async def batch_create_nodes(
 
 @router.get("", response_model=ApiResponse)
 async def list_nodes(
-    type: str | None = Query(None),
+    category_id: uuid.UUID | None = Query(None),
     status_filter: str | None = Query(None, alias="status"),
     tag: str | None = Query(None),
     mine: bool = Query(False, description="仅返回当前用户自己的节点"),
@@ -143,7 +144,7 @@ async def list_nodes(
     registry = NodeRegistry(db)
     nodes = await registry.list_nodes(
         owner=current_user,
-        type=type,
+        category_id=category_id,
         status=status_filter,
         tag=tag,
         mine_only=mine,
@@ -197,7 +198,7 @@ async def update_node(
                 "name": node.name,
                 "display_name": node.display_name,
                 "description": node.description,
-                "type": node.type,
+                "category": node.category_rel.display_name if node.category_rel else "",
                 "status": node.status,
                 "namespace_id": str(node.namespace_id),
                 "invocation_count": node.invocation_count,

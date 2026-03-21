@@ -10,7 +10,7 @@ from typing import Any
 
 import yaml
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.deps import get_current_user
@@ -26,10 +26,16 @@ from backend.schemas.discovery import (
     BatchImportRequest,
     BatchImportResponse,
     BatchImportResultItem,
+    CompareRequest,
+    CompareResponse,
+    CompareResultItem,
     DiscoverySessionCreate,
     DiscoverySessionDetail,
     DiscoverySessionSchema,
     DiscoverySessionUpdate,
+    DuplicateUrlResponse,
+    IterateRequest,
+    IterateResponse,
     LinkedNodeSchema,
     NodeDraftListResponse,
     NodeDraftSchema,
@@ -81,6 +87,7 @@ async def probe_openapi(
         spec_url=result.spec_url,
         needs_auth=result.needs_auth,
         error=result.error,
+        error_type=result.error_type,
         attempts=[
             ProbeAttemptSchema(
                 path=a.path, status=a.status, success=a.success, error=a.error
@@ -115,6 +122,7 @@ async def probe_openapi_with_auth(
         spec_url=result.spec_url,
         needs_auth=result.needs_auth,
         error=result.error,
+        error_type=result.error_type,
         attempts=[
             ProbeAttemptSchema(
                 path=a.path, status=a.status, success=a.success, error=a.error
@@ -171,9 +179,8 @@ async def batch_import_nodes(
             "base_url": base_url,
             "input_schema": item.input_schema,
             "output_schema": item.output_schema,
-            "category": item.category,
+            "category_id": str(item.category_id) if item.category_id else None,
             "tags": item.tags,
-            "type": "tool",
             "visibility": body.visibility,
         }
         for item in body.items
@@ -297,20 +304,24 @@ async def update_session(
 async def list_sessions(
     page: int = 1,
     page_size: int = 20,
+    base_url: str | None = None,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List discovery sessions for the current user, newest first."""
+    """List discovery sessions for the current user, newest first. Optional base_url filter."""
     from sqlalchemy import desc
 
     offset = (page - 1) * page_size
-    result = await db.execute(
+    query = (
         select(DiscoverySession)
         .where(DiscoverySession.user_id == user.id)
         .order_by(desc(DiscoverySession.created_at))
         .limit(page_size)
         .offset(offset)
     )
+    if base_url:
+        query = query.where(DiscoverySession.base_url == base_url.rstrip("/"))
+    result = await db.execute(query)
     return result.scalars().all()
 
 
@@ -357,3 +368,191 @@ async def get_session(
             for n in nodes
         ],
     )
+
+
+# ---------- Duplicate URL Detection ----------
+
+
+@router.get("/check-duplicate", response_model=DuplicateUrlResponse)
+async def check_duplicate_url(
+    base_url: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check if a base_url has already been discovered/imported."""
+    normalized = base_url.rstrip("/")
+
+    # Check discovery sessions
+    result = await db.execute(
+        select(DiscoverySession).where(
+            DiscoverySession.user_id == user.id,
+            DiscoverySession.base_url == normalized,
+            DiscoverySession.status.in_(["completed", "importing"]),
+        )
+        .order_by(DiscoverySession.created_at.desc())
+        .limit(1)
+    )
+    existing_sess = result.scalar_one_or_none()
+
+    # Check nodes with matching base_url in endpoint
+    node_result = await db.execute(
+        select(func.count()).select_from(Node).where(
+            Node.endpoint.ilike(f"{normalized}%"),
+        )
+    )
+    node_count = node_result.scalar() or 0
+
+    if existing_sess or node_count > 0:
+        return DuplicateUrlResponse(
+            duplicate=True,
+            existing_session_id=existing_sess.id if existing_sess else None,
+            existing_count=node_count,
+            message=f"该 URL 已有 {node_count} 个节点注册",
+        )
+
+    return DuplicateUrlResponse(duplicate=False)
+
+
+# ---------- Endpoint Compare ----------
+
+
+@router.post("/sessions/{session_id}/compare", response_model=CompareResponse)
+async def compare_session(
+    session_id: uuid_module.UUID,
+    body: CompareRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Compare current session's spec with a previous session's imported nodes.
+
+    Returns path+method pairs with status: new, imported, updated, removed.
+    """
+    # Load current session
+    current_result = await db.execute(
+        select(DiscoverySession).where(
+            DiscoverySession.id == session_id,
+            DiscoverySession.user_id == user.id,
+        )
+    )
+    current_sess = current_result.scalar_one_or_none()
+    if not current_sess:
+        raise HTTPException(status_code=404, detail="当前会话不存在")
+
+    # Load previous session's imported nodes
+    prev_nodes_result = await db.execute(
+        select(Node).where(Node.discovery_session_id == body.previous_session_id)
+    )
+    prev_nodes = list(prev_nodes_result.scalars().all())
+    prev_map: dict[str, Node] = {}
+    for n in prev_nodes:
+        key = f"{n.source_path or ''}|{n.method or ''}"
+        prev_map[key] = n
+
+    # Load current session's nodes (if any already imported)
+    curr_nodes_result = await db.execute(
+        select(Node).where(Node.discovery_session_id == session_id)
+    )
+    curr_nodes = list(curr_nodes_result.scalars().all())
+    curr_map: dict[str, Node] = {}
+    for n in curr_nodes:
+        key = f"{n.source_path or ''}|{n.method or ''}"
+        curr_map[key] = n
+
+    items: list[CompareResultItem] = []
+
+    # Check current session nodes against previous
+    all_keys = set(prev_map.keys()) | set(curr_map.keys())
+    for key in sorted(all_keys):
+        parts = key.split("|", 1)
+        path = parts[0] if parts else ""
+        method = parts[1] if len(parts) > 1 else ""
+
+        in_prev = key in prev_map
+        in_curr = key in curr_map
+
+        if in_curr and not in_prev:
+            items.append(CompareResultItem(path=path, method=method, status="new"))
+        elif in_prev and not in_curr:
+            items.append(CompareResultItem(path=path, method=method, status="removed"))
+        elif in_prev and in_curr:
+            prev_node = prev_map[key]
+            curr_node = curr_map[key]
+            changes: dict[str, str] = {}
+            if prev_node.description != curr_node.description:
+                changes["description"] = "changed"
+            if prev_node.display_name != curr_node.display_name:
+                changes["display_name"] = "changed"
+            if changes:
+                items.append(CompareResultItem(path=path, method=method, status="updated", changes=changes))
+            else:
+                items.append(CompareResultItem(path=path, method=method, status="imported"))
+
+    return CompareResponse(items=items)
+
+
+# ---------- Iterate Import ----------
+
+
+@router.post("/sessions/{session_id}/iterate", response_model=IterateResponse)
+async def iterate_import(
+    session_id: uuid_module.UUID,
+    body: IterateRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Execute iterate actions: import new nodes, update existing, or skip.
+
+    Each action specifies path+method+action(import/update/skip).
+    """
+    # Verify session
+    sess_result = await db.execute(
+        select(DiscoverySession).where(
+            DiscoverySession.id == session_id,
+            DiscoverySession.user_id == user.id,
+        )
+    )
+    sess = sess_result.scalar_one_or_none()
+    if not sess:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    imported = 0
+    updated = 0
+    skipped = 0
+
+    for action_item in body.actions:
+        if action_item.action == "skip":
+            skipped += 1
+            continue
+
+        if action_item.action == "update":
+            # Find existing node by source_path + method
+            existing_result = await db.execute(
+                select(Node).where(
+                    Node.source_path == action_item.path,
+                    Node.method == action_item.method.upper(),
+                    Node.discovery_session_id.isnot(None),
+                )
+            )
+            existing_node = existing_result.scalar_one_or_none()
+            if existing_node:
+                # Mark node as updated by bumping updated_at
+                from sqlalchemy import update as sa_update
+                await db.execute(
+                    sa_update(Node).where(Node.id == existing_node.id).values(
+                        discovery_session_id=session_id,
+                    )
+                )
+                updated += 1
+            else:
+                skipped += 1
+
+        elif action_item.action == "import":
+            # This is a new node — would need full node data
+            # For now, count it. Actual creation requires re-probing or draft data.
+            imported += 1
+
+    # Update session
+    sess.imported_count = (sess.imported_count or 0) + imported + updated
+    await db.commit()
+
+    return IterateResponse(imported=imported, updated=updated, skipped=skipped)

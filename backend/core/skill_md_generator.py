@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.models.node import Node, NodeVersion
 from backend.models.skill import Skill
+from backend.models.skill_node import SkillNode
 
 
 _LLM_TIMEOUT = 30  # seconds
@@ -120,16 +121,25 @@ async def generate_skill_md(
     if skill is None:
         raise ValueError("技能集不存在")
 
-    # Collect node metadata
-    nodes_result = await db.execute(
-        select(Node).where(Node.skill_id == skill_id)
+    # Collect node metadata via skill_nodes M2M
+    sn_result = await db.execute(
+        select(SkillNode)
+        .where(SkillNode.skill_id == skill_id)
+        .order_by(SkillNode.sort_order)
     )
-    nodes = list(nodes_result.scalars().all())
-    if not nodes:
+    skill_nodes = list(sn_result.scalars().all())
+    if not skill_nodes:
         raise ValueError("技能集下没有节点，无法生成 SKILL.md")
 
     nodes_meta = []
-    for node in nodes:
+    for sn in skill_nodes:
+        # Load the node
+        node_result = await db.execute(
+            select(Node).where(Node.id == sn.node_id)
+        )
+        node = node_result.scalar_one_or_none()
+        if node is None:
+            continue
         # Get default version for schema
         ver_result = await db.execute(
             select(NodeVersion).where(
@@ -138,11 +148,13 @@ async def generate_skill_md(
             )
         )
         default_ver = ver_result.scalar_one_or_none()
+        # usage_hint from SkillNode; fallback to node.description
+        usage_hint = sn.usage_hint or node.description
         nodes_meta.append({
             "name": node.name,
             "display_name": node.display_name,
             "description": node.description,
-            "usage_hint": node.usage_hint,
+            "usage_hint": usage_hint,
             "input_schema": str(default_ver.input_schema) if default_ver else "{}",
             "output_schema": str(default_ver.output_schema) if default_ver else "{}",
         })

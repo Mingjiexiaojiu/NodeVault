@@ -1,16 +1,11 @@
 import http from './http'
 
-export type NodeType =
-  | 'data_cleaning'
-  | 'analysis'
-  | 'risk'
-  | 'nlp'
-  | 'vision'
-  | 'ml'
-  | 'tool'
-  | 'utility'
-
 export type NodeStatus = 'draft' | 'active' | 'deprecated' | 'archived'
+
+export interface CategoryBrief {
+  id: string
+  display_name: string
+}
 
 export interface NodeVersion {
   id: string
@@ -39,9 +34,9 @@ export interface NodeItem {
   name: string
   display_name: string
   description: string
-  type: NodeType
+  category_id: string
+  category: CategoryBrief | null
   status: NodeStatus
-  category: string
   tags: string[]
   owner_id: string
   owner_username: string | null
@@ -50,9 +45,6 @@ export interface NodeItem {
   source_credential_id: string | null
   source_path: string | null
   source_service_name: string | null
-  skill_id: string | null
-  usage_hint: string | null
-  skill_name: string | null
   created_at: string
   updated_at: string
 }
@@ -76,7 +68,7 @@ export interface InvokeResult {
 export interface NodeListParams {
   page?: number
   page_size?: number
-  type?: NodeType
+  category_id?: string
   status?: NodeStatus
   mine?: boolean
 }
@@ -92,12 +84,9 @@ export interface CreateNodePayload {
   name: string
   display_name?: string
   description?: string
-  type: NodeType
-  category?: string
+  category_id: string
   tags?: string[]
   version?: string
-  skill_id?: string | null
-  usage_hint?: string | null
   runtime: {
     type: string
     endpoint: string
@@ -136,12 +125,9 @@ export interface TagItem {
 export interface UpdateNodePayload {
   display_name?: string
   description?: string
-  type?: NodeType
+  category_id?: string
   status?: NodeStatus
-  category?: string
   tags?: string[]
-  skill_id?: string | null
-  usage_hint?: string | null
 }
 
 export const listNodes = (params?: NodeListParams) =>

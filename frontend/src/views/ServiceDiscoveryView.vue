@@ -123,7 +123,21 @@
 
             <!-- 探测失败兜底 -->
             <div v-if="probeFailed" class="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
-              <p class="text-sm text-gray-600">未能自动发现 OpenAPI 文档，你可以：</p>
+              <div v-if="probeErrorType" class="flex items-center gap-2 text-sm text-gray-600">
+                <span v-if="probeErrorType === 'dns_error'" class="text-red-500">❌ DNS 解析失败，请检查域名是否正确</span>
+                <span v-else-if="probeErrorType === 'connection_refused'" class="text-red-500">❌ 连接被拒绝，请确认服务是否在运行</span>
+                <span v-else-if="probeErrorType === 'ssl_error'" class="text-amber-500">⚠️ SSL 证书错误，请检查 HTTPS 配置</span>
+                <span v-else-if="probeErrorType === 'timeout'" class="text-amber-500">⏱️ 连接超时，服务响应过慢</span>
+                <span v-else-if="probeErrorType === 'spec_not_found'" class="text-gray-600">🔍 未找到 OpenAPI 文档</span>
+                <span v-else-if="probeErrorType === 'parse_error'" class="text-red-500">❌ 解析错误</span>
+                <button
+                  class="ml-auto px-3 py-1 text-xs text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors"
+                  @click="handleProbe"
+                >
+                  重试
+                </button>
+              </div>
+              <p v-else class="text-sm text-gray-600">未能自动发现 OpenAPI 文档，你可以：</p>
               <div class="flex flex-wrap gap-3">
                 <label class="px-4 py-2 rounded-xl border border-dashed border-gray-300 text-sm text-gray-600 hover:border-indigo-400 hover:text-indigo-600 cursor-pointer transition-colors">
                   📁 上传 Spec 文件
@@ -278,11 +292,11 @@
               <div class="flex flex-col gap-1.5">
                 <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">分类</label>
                 <select
-                  v-model="importConfig.category"
+                  v-model="importConfig.category_id"
                   class="block w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
                 >
                   <option value="">不设置</option>
-                  <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+                  <option v-for="c in categoryList" :key="c.id" :value="c.id">{{ c.display_name }}</option>
                 </select>
               </div>
               <!-- Visibility -->
@@ -387,6 +401,30 @@
           </button>
         </div>
 
+        <!-- 重复 URL 弹窗 -->
+        <Teleport to="body">
+          <div v-if="showDuplicateModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showDuplicateModal = false">
+            <div class="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 overflow-hidden">
+              <div class="px-6 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-900">⚠ 此地址已有发现记录</h3>
+              </div>
+              <div class="p-6 space-y-3">
+                <p class="text-sm text-gray-600">该 URL 已有 <strong>{{ duplicateInfo?.existing_node_count ?? 0 }}</strong> 个已导入节点。</p>
+                <p class="text-xs text-gray-400">你可以选择：</p>
+              </div>
+              <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+                <button class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900" @click="showDuplicateModal = false">取消</button>
+                <button
+                  class="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
+                  @click="doProbe"
+                >
+                  继续探测（迭代更新）
+                </button>
+              </div>
+            </div>
+          </div>
+        </Teleport>
+
         <!-- 认证配置弹窗 -->
         <Teleport to="body">
           <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showAuthModal = false">
@@ -478,8 +516,10 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { probeSpec, probeWithAuth, uploadSpec, batchImport, getImportedPaths, createSession, updateSession } from '@/api/discovery'
+import { probeSpec, probeWithAuth, uploadSpec, batchImport, getImportedPaths, createSession, updateSession, checkDuplicate } from '@/api/discovery'
 import { listCredentials } from '@/api/credentials'
+import { listCategories } from '@/api/categories'
+import type { Category } from '@/api/categories'
 import type { NodeDraft, ProbeAttempt, BatchImportResponse } from '@/api/discovery'
 import type { CredentialResponse } from '@/api/credentials'
 
@@ -518,7 +558,7 @@ const authConfig = reactive({
 
 // --- Import ---
 const importConfig = reactive({
-  category: '',
+  category_id: '',
   visibility: 'internal',
   tags: '',
   credentialId: '',
@@ -528,8 +568,10 @@ const importError = ref('')
 const importResult = ref<BatchImportResponse | null>(null)
 const credentials = ref<CredentialResponse[]>([])
 const importedPaths = ref<Set<string>>(new Set())
-
-const categories = ['tool', 'data_cleaning', 'analysis', 'risk', 'nlp', 'vision', 'ml', 'utility']
+const categoryList = ref<Category[]>([])
+const probeErrorType = ref<string | null>(null)
+const showDuplicateModal = ref(false)
+const duplicateInfo = ref<{ existing_sessions: { id: string; base_url: string; status: string; created_at: string }[]; existing_node_count: number } | null>(null)
 
 // --- Computed ---
 const namespaceId = computed(() => auth.user?.namespaces?.[0]?.id ?? '')
@@ -603,11 +645,32 @@ function setDrafts(drafts: NodeDraft[], url: string) {
 
 async function handleProbe() {
   if (!baseUrl.value.trim()) return
+
+  // 重复 URL 检测
+  try {
+    const dupRes = await checkDuplicate(baseUrl.value.trim())
+    const dupData = dupRes.data as any
+    if (dupData.is_duplicate) {
+      duplicateInfo.value = { existing_sessions: dupData.existing_sessions, existing_node_count: dupData.existing_node_count }
+      showDuplicateModal.value = true
+      return
+    }
+  } catch {
+    // 检测失败不阻止探测
+  }
+
+  await doProbe()
+}
+
+async function doProbe() {
+  if (!baseUrl.value.trim()) return
+  showDuplicateModal.value = false
   probing.value = true
   probeAttempts.value = []
   probeFailed.value = false
   needsAuth.value = false
   probeError.value = ''
+  probeErrorType.value = null
 
   try {
     // 创建探测会话
@@ -634,6 +697,7 @@ async function handleProbe() {
       needsAuth.value = true
     } else if (data.found === false) {
       probeFailed.value = true
+      probeErrorType.value = data.error_type || null
       if (sessionId.value) {
         await updateSession(sessionId.value, { status: 'failed' }).catch(() => {})
       }
@@ -773,7 +837,7 @@ async function handleImport() {
         method: d.method,
         input_schema: d.input_schema,
         output_schema: d.output_schema,
-        category: importConfig.category || d.category || undefined,
+        category_id: importConfig.category_id || undefined,
         tags: tags.length ? tags : d.tags,
         source_path: d.endpoint,
       })),
@@ -799,7 +863,7 @@ function resetAll() {
   importError.value = ''
   importResult.value = null
   importedPaths.value = new Set()
-  importConfig.category = ''
+  importConfig.category_id = ''
   importConfig.visibility = 'internal'
   importConfig.tags = ''
   importConfig.credentialId = ''
@@ -810,5 +874,6 @@ function resetAll() {
 
 onMounted(() => {
   loadCredentials()
+  listCategories().then(res => { categoryList.value = res.data }).catch(() => {})
 })
 </script>

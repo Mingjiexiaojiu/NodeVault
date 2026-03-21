@@ -6,14 +6,13 @@ import pytest
 from httpx import AsyncClient
 
 
-def _make_node_payload(unique: str) -> dict:
+def _make_node_payload(unique: str, category_id: str = "") -> dict:
     return {
         "name": f"export_node_{unique}",
         "version": "1.0.0",
         "display_name": f"Export Test {unique}",
         "description": "Export test node",
-        "type": "tool",
-        "category": "test",
+        "category_id": category_id,
         "runtime": {
             "type": "http",
             "endpoint": "https://httpbin.org/post",

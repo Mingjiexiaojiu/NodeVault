@@ -27,7 +27,7 @@ class NodeSearchIndex:
             ["name", "display_name", "description", "tags", "category"]
         )
         index.update_filterable_attributes(
-            ["type", "status", "namespace_id", "tags"]
+            ["category", "status", "namespace_id", "tags"]
         )
         index.update_sortable_attributes(
             ["created_at", "updated_at", "invocation_count"]
@@ -83,8 +83,8 @@ class NodeSearchIndex:
 
     def _build_filter(self, filters: dict) -> str:
         parts = []
-        if filters.get("type"):
-            parts.append(f'type = "{filters["type"]}"')
+        if filters.get("category"):
+            parts.append(f'category = "{filters["category"]}"')
         if filters.get("status"):
             parts.append(f'status = "{filters["status"]}"')
         if filters.get("namespace_id"):

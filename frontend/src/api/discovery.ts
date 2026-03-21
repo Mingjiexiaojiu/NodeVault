@@ -29,6 +29,7 @@ export interface ProbeResult {
   spec_url: string | null
   needs_auth: boolean
   error: string | null
+  error_type: string | null
   attempts: ProbeAttempt[]
 }
 
@@ -58,7 +59,7 @@ export interface BatchImportItem {
   method: string
   input_schema?: Record<string, unknown>
   output_schema?: Record<string, unknown>
-  category?: string
+  category_id?: string
   tags?: string[]
   source_path?: string
 }
@@ -163,9 +164,56 @@ export const updateSession = (sessionId: string, payload: DiscoverySessionUpdate
   http.patch<DiscoverySession>(`/discovery/sessions/${sessionId}`, payload)
 
 /** List discovery sessions for current user */
-export const listSessions = (page = 1, pageSize = 20) =>
-  http.get<DiscoverySession[]>(`/discovery/sessions?page=${page}&page_size=${pageSize}`)
+export const listSessions = (page = 1, pageSize = 20, baseUrl?: string) => {
+  const params: Record<string, unknown> = { page, page_size: pageSize }
+  if (baseUrl) params.base_url = baseUrl
+  return http.get<DiscoverySession[]>('/discovery/sessions', { params })
+}
 
 /** Get session detail with linked nodes */
 export const getSession = (sessionId: string) =>
   http.get<DiscoverySessionDetail>(`/discovery/sessions/${sessionId}`)
+
+// ---------- Duplicate Detection & Iteration ----------
+
+export interface DuplicateUrlResponse {
+  is_duplicate: boolean
+  existing_sessions: { id: string; base_url: string; status: string; created_at: string }[]
+  existing_node_count: number
+}
+
+/** Check if a base_url has already been discovered/imported */
+export const checkDuplicate = (baseUrl: string) =>
+  http.get<DuplicateUrlResponse>('/discovery/check-duplicate', { params: { base_url: baseUrl } })
+
+export interface CompareResultItem {
+  source_path: string
+  method: string
+  status: 'new' | 'imported' | 'updated' | 'removed'
+  node_id: string | null
+  display_name: string | null
+}
+
+export interface CompareResponse {
+  items: CompareResultItem[]
+}
+
+/** Compare current session endpoints with previous ones */
+export const compareSession = (sessionId: string, previousSessionId: string) =>
+  http.post<CompareResponse>(`/discovery/sessions/${sessionId}/compare`, { previous_session_id: previousSessionId })
+
+export interface IterateAction {
+  source_path: string
+  method: string
+  action: 'import' | 'update' | 'skip'
+}
+
+export interface IterateResponse {
+  imported: number
+  updated: number
+  skipped: number
+}
+
+/** Execute iteration actions on compared endpoints */
+export const iterateSession = (sessionId: string, actions: IterateAction[], namespaceId: string) =>
+  http.post<IterateResponse>(`/discovery/sessions/${sessionId}/iterate`, { actions, namespace_id: namespaceId })

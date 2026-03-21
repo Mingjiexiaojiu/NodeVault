@@ -7,14 +7,13 @@ import pytest
 from httpx import AsyncClient
 
 
-def _make_node_payload(unique: str) -> dict:
+def _make_node_payload(unique: str, category_id: str = "") -> dict:
     return {
         "name": f"agent_node_{unique}",
         "version": "1.0.0",
         "display_name": f"Agent Test {unique}",
         "description": "Agent test node for risk analysis",
-        "type": "tool",
-        "category": "risk",
+        "category_id": category_id,
         "runtime": {
             "type": "http",
             "endpoint": "https://httpbin.org/post",

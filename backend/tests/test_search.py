@@ -20,7 +20,7 @@ def _make_node_doc(uid: str) -> dict:
         "name": f"node_{uid}",
         "display_name": f"Node {uid}",
         "description": "test node",
-        "type": "tool",
+        "category": "工具",
         "status": "active",
         "namespace_id": str(uuid.uuid4()),
         "invocation_count": 0,
@@ -93,7 +93,7 @@ def test_search_passes_query_and_filters():
 
         NodeSearchIndex().search(
             query="hello",
-            filters={"type": "tool", "status": "active"},
+            filters={"category": "工具", "status": "active"},
             page=1,
             page_size=10,
         )
@@ -103,7 +103,7 @@ def test_search_passes_query_and_filters():
         params = call_kwargs[0][1]
         assert params["limit"] == 10
         assert params["offset"] == 0
-        assert 'type = "tool"' in params["filter"]
+        assert 'category = "工具"' in params["filter"]
         assert 'status = "active"' in params["filter"]
 
 
@@ -129,14 +129,13 @@ def test_build_filter_empty():
 # ---------------------------------------------------------------------------
 
 
-def _make_node_payload(unique: str) -> dict:
+def _make_node_payload(unique: str, category_id: str = "") -> dict:
     return {
         "name": f"search_node_{unique}",
         "version": "1.0.0",
         "display_name": f"Search Node {unique}",
         "description": "searchable node",
-        "type": "tool",
-        "category": "test",
+        "category_id": category_id,
         "runtime": {
             "type": "http",
             "endpoint": "https://httpbin.org/post",
@@ -182,18 +181,18 @@ async def test_search_nodes_503_on_error(auth_client):
 
 @pytest.mark.anyio
 async def test_search_nodes_with_type_filter(auth_client):
-    """GET /search/nodes 支持 type 过滤参数"""
+    """«GET /search/nodes 支持 category 过滤参数"""
     client, headers, _ = auth_client
 
     with patch("backend.api.v1.search.NodeSearchIndex") as mock_cls:
         mock_cls.return_value.search.return_value = {"hits": [], "estimatedTotalHits": 0}
 
-        resp = await client.get("/api/v1/search/nodes?q=&type=tool", headers=headers)
+        resp = await client.get("/api/v1/search/nodes?q=&category=工具", headers=headers)
 
     assert resp.status_code == 200
-    # Verify that the search was called with type filter
+    # Verify that the search was called with category filter
     call_kwargs = mock_cls.return_value.search.call_args[1]
-    assert call_kwargs["filters"].get("type") == "tool"
+    assert call_kwargs["filters"].get("category") == "工具"
 
 
 @pytest.mark.anyio

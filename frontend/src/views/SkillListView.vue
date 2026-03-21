@@ -44,6 +44,8 @@
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
                 <h3 class="text-sm font-semibold text-gray-900 truncate">{{ skill.display_name || skill.name }}</h3>
+                <span v-if="skill.is_system" class="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">系统</span>
+                <span v-else class="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">自定义</span>
                 <span v-if="skill.is_stale" class="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">需更新</span>
               </div>
               <p class="text-xs text-gray-400 font-mono mt-0.5">{{ skill.name }}</p>

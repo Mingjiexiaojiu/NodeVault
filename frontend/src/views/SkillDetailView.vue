@@ -17,6 +17,18 @@
             <h1 class="text-xl font-semibold text-gray-900">{{ skill.display_name || skill.name }}</h1>
             <span class="font-mono text-sm text-gray-400">{{ skill.name }}</span>
             <span
+              v-if="skill.is_system"
+              class="text-xs px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200"
+            >
+              系统
+            </span>
+            <span
+              v-else
+              class="text-xs px-2 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200"
+            >
+              自定义
+            </span>
+            <span
               v-if="skill.is_stale"
               class="text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200"
             >
@@ -51,25 +63,44 @@
             </svg>
             {{ generating ? 'AI 生成中...' : 'AI 生成 SKILL.md' }}
           </button>
+          <button
+            v-if="!skill.is_system"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+            @click="confirmDeleteSkill = true"
+          >
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            删除
+          </button>
         </div>
       </div>
     </div>
 
     <!-- 节点列表 -->
     <div class="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-      <div class="px-6 py-4 border-b border-gray-100">
+      <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
         <h2 class="text-sm font-semibold text-gray-900">节点（{{ skill.nodes.length }}）</h2>
+        <button
+          class="flex items-center gap-1.5 text-xs text-indigo-600 hover:underline"
+          @click="showAddNode = true"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+          </svg>
+          添加节点
+        </button>
       </div>
       <div v-if="skill.nodes.length === 0" class="px-6 py-8 text-center text-sm text-gray-400">
-        暂无节点。在节点编辑页将节点归属到此技能集即可。
+        暂无节点。点击「添加节点」将已有节点归属到此技能集。
       </div>
       <ul v-else class="divide-y divide-gray-50">
         <li
           v-for="node in skill.nodes"
           :key="node.id"
-          class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors"
+          class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition-colors group"
         >
-          <div class="min-w-0">
+          <div class="min-w-0 flex-1">
             <RouterLink
               :to="`/nodes/${node.id}`"
               class="text-sm font-medium text-gray-900 hover:text-indigo-600 transition-colors"
@@ -77,15 +108,40 @@
               {{ node.display_name || node.name }}
             </RouterLink>
             <p class="text-xs text-gray-400 font-mono">{{ node.name }}</p>
-            <p v-if="node.usage_hint" class="text-xs text-gray-500 mt-0.5 line-clamp-1">{{ node.usage_hint }}</p>
-            <p v-else class="text-xs text-amber-500 mt-0.5">⚠ 建议填写 usage_hint 以提升 AI 生成质量</p>
+            <!-- usage_hint 行内编辑 -->
+            <div v-if="editingNodeId === node.id" class="flex items-center gap-2 mt-1.5">
+              <input
+                v-model="editingHint"
+                class="flex-1 text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                placeholder="输入该节点在此技能集中的用途描述..."
+                @keyup.enter="saveUsageHint(node.id)"
+                @keyup.esc="editingNodeId = ''"
+              />
+              <button class="text-xs text-indigo-600 hover:underline" @click="saveUsageHint(node.id)">保存</button>
+              <button class="text-xs text-gray-400 hover:text-gray-600" @click="editingNodeId = ''">取消</button>
+            </div>
+            <template v-else>
+              <p v-if="node.usage_hint" class="text-xs text-gray-500 mt-0.5 line-clamp-1 cursor-pointer hover:text-indigo-500" @click="startEditHint(node)">
+                {{ node.usage_hint }}
+                <span class="text-gray-300 ml-1">✎</span>
+              </p>
+              <p v-else class="text-xs text-amber-500 mt-0.5 cursor-pointer hover:underline" @click="startEditHint(node)">⚠ 点击添加 usage_hint 以提升 AI 生成质量</p>
+            </template>
           </div>
-          <RouterLink
-            :to="`/nodes/${node.id}/edit`"
-            class="text-xs text-indigo-500 hover:underline ml-4 shrink-0"
-          >
-            编辑
-          </RouterLink>
+          <div class="flex items-center gap-2 ml-4 shrink-0">
+            <RouterLink
+              :to="`/nodes/${node.id}`"
+              class="text-xs text-indigo-500 hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              查看
+            </RouterLink>
+            <button
+              class="text-xs text-red-500 hover:underline opacity-0 group-hover:opacity-100 transition-opacity"
+              @click="confirmRemoveNodeId = node.id"
+            >
+              移除
+            </button>
+          </div>
         </li>
       </ul>
     </div>
@@ -286,23 +342,137 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 添加节点 Modal -->
+    <Teleport to="body">
+      <div
+        v-if="showAddNode"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        @click.self="showAddNode = false"
+      >
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md">
+          <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 class="text-base font-semibold text-gray-900">添加节点到技能集</h3>
+            <button class="text-gray-400 hover:text-gray-600" @click="showAddNode = false">✕</button>
+          </div>
+          <div class="px-6 py-4 space-y-4">
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-gray-600">搜索节点</label>
+              <input
+                v-model="addNodeSearch"
+                placeholder="输入节点名称搜索..."
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
+                @input="searchNodes"
+              />
+            </div>
+            <div class="max-h-48 overflow-auto space-y-1">
+              <button
+                v-for="n in searchResult"
+                :key="n.id"
+                class="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors"
+                :class="addNodeForm.node_id === n.id ? 'bg-indigo-50 border border-indigo-200' : ''"
+                @click="addNodeForm.node_id = n.id"
+              >
+                <p class="text-sm font-medium text-gray-900">{{ n.display_name || n.name }}</p>
+                <p class="text-xs text-gray-400 font-mono">{{ n.name }}</p>
+              </button>
+              <p v-if="addNodeSearch && searchResult.length === 0" class="text-xs text-gray-400 text-center py-2">无匹配节点</p>
+            </div>
+            <div v-if="addNodeForm.node_id" class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-gray-600">用途提示 (可选)</label>
+              <textarea
+                v-model="addNodeForm.usage_hint"
+                rows="2"
+                placeholder="描述该节点在此技能集中的应用场景..."
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
+              />
+            </div>
+            <p v-if="addNodeError" class="text-xs text-red-500">{{ addNodeError }}</p>
+          </div>
+          <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
+            <button class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900" @click="showAddNode = false">取消</button>
+            <button
+              class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+              :disabled="!addNodeForm.node_id || addingNode"
+              @click="handleAddNode"
+            >
+              {{ addingNode ? '添加中...' : '添加' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 移除节点确认 -->
+    <Teleport to="body">
+      <div
+        v-if="confirmRemoveNodeId"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        @click.self="confirmRemoveNodeId = ''"
+      >
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+          <h3 class="text-base font-semibold text-gray-900 mb-2">确认移除节点</h3>
+          <p class="text-sm text-gray-500 mb-6">从此技能集中移除该节点？节点本身不会被删除。</p>
+          <div class="flex justify-end gap-3">
+            <button class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900" @click="confirmRemoveNodeId = ''">取消</button>
+            <button
+              class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+              @click="handleRemoveNode"
+            >
+              确认移除
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 删除技能集确认 -->
+    <Teleport to="body">
+      <div
+        v-if="confirmDeleteSkill"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm"
+        @click.self="confirmDeleteSkill = false"
+      >
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+          <h3 class="text-base font-semibold text-gray-900 mb-2">确认删除技能集</h3>
+          <p class="text-sm text-gray-500 mb-6">此操作不可逆，将永久删除该技能集及其所有版本数据。</p>
+          <div class="flex justify-end gap-3">
+            <button class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900" @click="confirmDeleteSkill = false">取消</button>
+            <button
+              class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              :disabled="deletingSkill"
+              @click="handleDeleteSkill"
+            >
+              {{ deletingSkill ? '删除中...' : '确认删除' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   getSkillDetail,
   generateSkillMd,
   createSkillVersion,
   downloadSkillZip,
+  addNodeToSkill,
+  removeNodeFromSkill,
+  updateSkillNode,
+  deleteSkill,
 } from '@/api/skills'
-import type { SkillDetail, GenerateResult } from '@/api/skills'
+import type { SkillDetail, GenerateResult, SkillNodeItem } from '@/api/skills'
+import { listNodes } from '@/api/nodes'
+import type { NodeItem } from '@/api/nodes'
 import { getAIConfigs } from '@/api/ai-config'
 import type { AIConfigItem } from '@/api/ai-config'
 
 const route = useRoute()
+const router = useRouter()
 const skillId = route.params.id as string
 
 const skill = ref<SkillDetail | null>(null)
@@ -324,6 +494,95 @@ const publishForm = reactive({
   skill_md: '',
   release_notes: '',
 })
+
+// M2M 节点管理
+const showAddNode = ref(false)
+const addNodeSearch = ref('')
+const searchResult = ref<NodeItem[]>([])
+const addNodeForm = reactive({ node_id: '', usage_hint: '' })
+const addNodeError = ref('')
+const addingNode = ref(false)
+const confirmRemoveNodeId = ref('')
+const editingNodeId = ref('')
+const editingHint = ref('')
+
+// 删除技能集
+const confirmDeleteSkill = ref(false)
+const deletingSkill = ref(false)
+
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+function searchNodes() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(async () => {
+    if (!addNodeSearch.value) { searchResult.value = []; return }
+    try {
+      const res = await listNodes({ keyword: addNodeSearch.value, page_size: 10 })
+      searchResult.value = res.data
+    } catch { searchResult.value = [] }
+  }, 300)
+}
+
+async function handleAddNode() {
+  addNodeError.value = ''
+  addingNode.value = true
+  try {
+    await addNodeToSkill(skillId, {
+      node_id: addNodeForm.node_id,
+      usage_hint: addNodeForm.usage_hint || undefined,
+    })
+    showAddNode.value = false
+    addNodeForm.node_id = ''
+    addNodeForm.usage_hint = ''
+    addNodeSearch.value = ''
+    searchResult.value = []
+    skill.value = await getSkillDetail(skillId)
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { detail?: string } } }
+    addNodeError.value = err.response?.data?.detail ?? '添加失败'
+  } finally {
+    addingNode.value = false
+  }
+}
+
+async function handleRemoveNode() {
+  const nodeId = confirmRemoveNodeId.value
+  confirmRemoveNodeId.value = ''
+  try {
+    await removeNodeFromSkill(skillId, nodeId)
+    skill.value = await getSkillDetail(skillId)
+  } catch {
+    // 静默处理
+  }
+}
+
+function startEditHint(node: SkillNodeItem) {
+  editingNodeId.value = node.id
+  editingHint.value = node.usage_hint || ''
+}
+
+async function saveUsageHint(nodeId: string) {
+  try {
+    await updateSkillNode(skillId, nodeId, { usage_hint: editingHint.value || undefined })
+    editingNodeId.value = ''
+    skill.value = await getSkillDetail(skillId)
+  } catch {
+    // 静默处理
+  }
+}
+
+async function handleDeleteSkill() {
+  deletingSkill.value = true
+  try {
+    await deleteSkill(skillId)
+    router.push('/skills')
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { detail?: string } } }
+    alert(err.response?.data?.detail ?? '删除失败')
+    confirmDeleteSkill.value = false
+  } finally {
+    deletingSkill.value = false
+  }
+}
 
 onMounted(async () => {
   try {

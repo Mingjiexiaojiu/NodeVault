@@ -24,7 +24,7 @@ router = APIRouter(prefix="/search", tags=["Search"])
 )
 async def search_nodes(
     q: str = Query("", description="搜索关键词，支持中英文"),
-    type: str | None = Query(None),
+    category: str | None = Query(None),
     tags: list[str] = Query([]),
     namespace_id: str | None = Query(None),
     sort: str = Query("relevance", enum=["relevance", "latest", "popular"]),
@@ -38,8 +38,8 @@ async def search_nodes(
         "popular": ["invocation_count:desc"],
     }
     filters: dict = {"status": NodeStatus.ACTIVE.value}
-    if type:
-        filters["type"] = type
+    if category:
+        filters["category"] = category
     if tags:
         filters["tags"] = tags
     if namespace_id:
@@ -103,7 +103,7 @@ async def reindex_nodes(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Node).options(selectinload(Node.tags))
+        select(Node).options(selectinload(Node.tags), selectinload(Node.category_rel))
         .where(Node.status != "archived")
     )
     nodes = list(result.scalars().all())
@@ -116,7 +116,7 @@ async def reindex_nodes(
                 "name": node.name,
                 "display_name": node.display_name,
                 "description": node.description,
-                "type": node.type,
+                "category": node.category_rel.display_name if node.category_rel else None,
                 "status": node.status,
                 "namespace_id": str(node.namespace_id),
                 "invocation_count": node.invocation_count,

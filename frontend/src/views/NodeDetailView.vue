@@ -95,16 +95,12 @@
             <p class="text-sm text-gray-700">{{ node.display_name || '—' }}</p>
           </div>
           <div>
-            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">类型</p>
-            <TypeBadge :type="node.type" />
+            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">分类</p>
+            <TypeBadge :category="node.category" />
           </div>
           <div>
             <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">状态</p>
             <StatusBadge :status="node.status" />
-          </div>
-          <div>
-            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">分类</p>
-            <p class="text-sm text-gray-700">{{ node.category || '—' }}</p>
           </div>
           <div>
             <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">创建时间</p>
@@ -127,38 +123,6 @@
           <div class="sm:col-span-2">
             <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">描述</p>
             <p class="text-sm text-gray-600 leading-relaxed">{{ node.description || '暂无描述' }}</p>
-          </div>
-          <!-- 技能集信息 -->
-          <div v-if="node.skill_id" class="sm:col-span-2">
-            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">所属技能集</p>
-            <RouterLink
-              :to="`/skills/${node.skill_id}`"
-              class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 text-violet-700 rounded-lg text-sm font-medium hover:bg-violet-100 transition-colors"
-            >
-              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
-              {{ node.skill_name || node.skill_id }}
-            </RouterLink>
-          </div>
-          <!-- usage_hint 显示 -->
-          <div v-if="node.skill_id" class="sm:col-span-2">
-            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">使用提示</p>
-            <p v-if="node.usage_hint" class="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{{ node.usage_hint }}</p>
-            <!-- 引导提示：有 skill_id 但 usage_hint 为空时 -->
-            <RouterLink
-              v-else
-              :to="`/nodes/${node.id}/edit`"
-              class="inline-flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 hover:bg-amber-100 transition-colors group"
-            >
-              <svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              </svg>
-              <span>此节点尚未填写使用提示，建议添加以提升技能集质量</span>
-              <svg class="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-              </svg>
-            </RouterLink>
           </div>
           <div v-if="node.tags?.length" class="sm:col-span-2">
             <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">标签</p>

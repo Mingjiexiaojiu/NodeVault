@@ -6,8 +6,15 @@ import respx
 from httpx import AsyncClient
 
 
-async def _create_active_node(client: AsyncClient, headers: dict) -> tuple[str, str]:
+async def _get_default_category_id(client: AsyncClient, headers: dict) -> str:
+    resp = await client.get("/api/v1/categories", headers=headers)
+    return resp.json()[0]["id"]
+
+
+async def _create_active_node(client: AsyncClient, headers: dict, category_id: str | None = None) -> tuple[str, str]:
     """Helper: create a node and activate it; returns (node_id, version)."""
+    if category_id is None:
+        category_id = await _get_default_category_id(client, headers)
     unique = uuid.uuid4().hex[:8]
     r = await client.post(
         "/api/v1/nodes",
@@ -15,7 +22,7 @@ async def _create_active_node(client: AsyncClient, headers: dict) -> tuple[str, 
             "name": f"invoke_node_{unique}",
             "version": "1.0.0",
             "display_name": f"Invoke Node {unique}",
-            "type": "tool",
+            "category_id": category_id,
             "runtime": {
                 "type": "http",
                 "endpoint": "https://mock-target.example/api",

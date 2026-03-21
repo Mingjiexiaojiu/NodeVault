@@ -20,14 +20,14 @@
     <div class="flex flex-wrap items-center gap-3 mb-5 bg-white rounded-2xl border border-gray-100 px-5 py-3.5" style="box-shadow: 0 1px 3px rgba(0,0,0,0.03)">
       <span class="text-xs font-medium text-gray-400 uppercase tracking-wide mr-1">筛选</span>
       <div class="flex items-center gap-1.5">
-        <label class="text-xs text-gray-500">类型</label>
+        <label class="text-xs text-gray-500">分类</label>
         <select
-          v-model="filter.type"
+          v-model="filter.category_id"
           class="text-sm border border-gray-200 bg-gray-50 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
           @change="fetchNodes"
         >
           <option value="">全部</option>
-          <option v-for="t in nodeTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+          <option v-for="c in categoryList" :key="c.id" :value="c.id">{{ c.display_name }}</option>
         </select>
       </div>
       <div class="flex items-center gap-1.5">
@@ -62,7 +62,7 @@
         <thead class="bg-gray-50/80 border-b border-gray-100">
           <tr>
             <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">名称</th>
-            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">类型</th>
+            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">分类</th>
             <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">状态</th>
             <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">归属</th>
             <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">创建时间</th>
@@ -80,7 +80,7 @@
               <p class="font-medium text-gray-900">{{ node.display_name || node.name }}</p>
               <p class="text-xs text-gray-400 font-mono">{{ node.name }}</p>
             </td>
-            <td class="px-6 py-4"><TypeBadge :type="node.type" /></td>
+            <td class="px-6 py-4"><TypeBadge :category="node.category" /></td>
             <td class="px-6 py-4"><StatusBadge :status="node.status" /></td>
             <td class="px-6 py-4">
               <div class="flex flex-col">
@@ -158,7 +158,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { listNodes, deleteNode } from '@/api/nodes'
-import type { NodeItem, NodeType, NodeStatus } from '@/api/nodes'
+import type { NodeItem, NodeStatus } from '@/api/nodes'
+import { listCategories } from '@/api/categories'
+import type { Category } from '@/api/categories'
 import BaseButton from '@/components/BaseButton.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
 import TypeBadge from '@/components/TypeBadge.vue'
@@ -172,21 +174,12 @@ const loading = ref(true)
 const deletingNode = ref<NodeItem | null>(null)
 const deletingLoading = ref(false)
 
-const filter = reactive<{ type: NodeType | ''; status: NodeStatus | '' }>({
-  type: '',
+const filter = reactive<{ category_id: string; status: NodeStatus | '' }>({
+  category_id: '',
   status: '',
 })
 
-const nodeTypes = [
-  { value: 'data_cleaning', label: '数据清洗' },
-  { value: 'analysis', label: '分析' },
-  { value: 'risk', label: '风控' },
-  { value: 'nlp', label: 'NLP' },
-  { value: 'vision', label: '视觉' },
-  { value: 'ml', label: '机器学习' },
-  { value: 'tool', label: '工具' },
-  { value: 'utility', label: '实用程序' },
-]
+const categoryList = ref<Category[]>([])
 
 const nodeStatuses = [
   { value: 'draft', label: '草稿' },
@@ -206,7 +199,7 @@ async function fetchNodes() {
       page: page.value,
       page_size: pageSize,
       mine: true,
-      ...(filter.type ? { type: filter.type } : {}),
+      ...(filter.category_id ? { category_id: filter.category_id } : {}),
       ...(filter.status ? { status: filter.status } : {}),
     }
     const res = await listNodes(params)
@@ -237,5 +230,8 @@ async function handleDeleteNode() {
   }
 }
 
-onMounted(fetchNodes)
+onMounted(async () => {
+  listCategories().then(res => { categoryList.value = res.data }).catch(() => {})
+  fetchNodes()
+})
 </script>

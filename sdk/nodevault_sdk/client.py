@@ -50,11 +50,11 @@ class NodeVaultClient:
     def register(
         self,
         name: str,
-        type: str,
         input_schema: dict,
         output_schema: dict,
         endpoint: str,
         description: str = "",
+        category_id: str | None = None,
         tags: list[str] | None = None,
         version: str = "1.0.0",
         **kwargs: Any,
@@ -62,7 +62,6 @@ class NodeVaultClient:
         """注册一个新 Node"""
         payload = {
             "name": name,
-            "type": type,
             "description": description,
             "tags": tags or [],
             "version": version,
@@ -71,6 +70,8 @@ class NodeVaultClient:
             "runtime": {"type": "http", "endpoint": endpoint},
             **kwargs,
         }
+        if category_id:
+            payload["category_id"] = category_id
         with httpx.Client(headers=self._headers, timeout=self.timeout) as client:
             resp = client.post(f"{self.base_url}/api/v1/nodes", json=payload)
             self._raise_for_status(resp)
@@ -126,8 +127,8 @@ class NodeVaultClient:
     def node(
         self,
         name: str,
-        type: str,
         description: str = "",
+        category_id: str | None = None,
         tags: list[str] | None = None,
         endpoint: str | None = None,
         auto_register: bool = True,
@@ -139,7 +140,6 @@ class NodeVaultClient:
 
             @vault.node(
                 name="my_analysis",
-                type="analysis",
                 description="分析数据",
                 endpoint="http://my-service/api/analyze"
             )
@@ -160,8 +160,8 @@ class NodeVaultClient:
                 try:
                     self.register(
                         name=name,
-                        type=type,
                         description=description,
+                        category_id=category_id,
                         tags=tags or [],
                         input_schema=input_schema,
                         output_schema=output_schema,

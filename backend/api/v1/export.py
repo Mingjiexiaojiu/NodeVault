@@ -29,8 +29,7 @@ def _node_to_dict(node: Node) -> dict[str, Any]:
         "name": node.name,
         "display_name": node.display_name,
         "description": node.description,
-        "type": node.type,
-        "category": node.category,
+        "category": node.category_rel.display_name if node.category_rel else None,
         "tags": [t.tag for t in (node.tags or [])],
     }
 

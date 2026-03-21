@@ -33,8 +33,7 @@ def _node_to_dict(node: Any, tags: list[str] | None = None) -> dict[str, Any]:
         "name": node.name if hasattr(node, "name") else node.get("name", ""),
         "display_name": node.display_name if hasattr(node, "display_name") else node.get("display_name"),
         "description": node.description if hasattr(node, "description") else node.get("description"),
-        "type": node.type if hasattr(node, "type") else node.get("type"),
-        "category": node.category if hasattr(node, "category") else node.get("category"),
+        "category": (node.category_rel.display_name if node.category_rel else None) if hasattr(node, "category_rel") else node.get("category"),
         "tags": tags or ([t.tag for t in node.tags] if hasattr(node, "tags") else node.get("tags") or []),
     }
 

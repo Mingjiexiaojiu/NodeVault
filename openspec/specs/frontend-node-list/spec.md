@@ -39,3 +39,15 @@ Each node row SHALL have a clickable area leading to the node detail page.
 #### Scenario: Click node name to view detail
 - **WHEN** user clicks a node's name or "鏌ョ湅璇︽儏" link
 - **THEN** user is navigated to /nodes/:id
+
+### Requirement: 节点列表展示与筛选
+前端 SHALL 在 /nodes 页面展示节点列表，支持按分类、状态、可见性等条件筛选。
+
+#### Scenario: 分类筛选替代类型筛选
+- **WHEN** 用户打开节点列表页面
+- **THEN** 筛选区域 SHALL 展示「分类」下拉，选项从 `GET /api/v1/categories` 动态加载，选择后传 category_id 参数到后端查询接口
+- **AND** 不再显示旧的「类型」筛选下拉（NodeType 枚举）
+
+#### Scenario: 节点卡片展示分类标签
+- **WHEN** 节点列表渲染节点卡片 / 表格行
+- **THEN** 每个节点 SHALL 展示其所属分类的 display_name 作为标签（badge），替代原有的 type 标签

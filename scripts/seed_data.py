@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from backend.auth.jwt import get_password_hash
 from backend.core.config import settings
 from backend.database.base import Base
+from backend.models.category import Category, DEFAULT_CATEGORIES
 from backend.models.namespace import Namespace
 from backend.models.node import Node, NodeInvocationLog, NodeTag, NodeVersion
 from backend.models.user import User
@@ -45,7 +46,6 @@ NODES: list[dict] = [
         "owner": "demo",
         "name": "text_sentiment",
         "display_name": "文本情感分析",
-        "type": "nlp",
         "status": "active",
         "visibility": "public",
         "category": "nlp",
@@ -116,9 +116,8 @@ NODES: list[dict] = [
         "owner": "demo",
         "name": "invoice_ocr",
         "display_name": "发票 OCR 识别",
-        "type": "vision",
         "status": "active",
-        "category": "finance",
+        "category": "vision",
         "description": "识别增值税专用发票、普通发票等图片，提取发票号、金额、税率等结构化字段。",
         "tags": ["ocr", "finance", "vision", "invoice"],
         "versions": [
@@ -161,7 +160,6 @@ NODES: list[dict] = [
         "owner": "demo",
         "name": "credit_risk_score",
         "display_name": "信贷风险评分",
-        "type": "risk",
         "status": "active",
         "category": "risk",
         "description": "根据用户基本信息和历史行为计算信贷风险评分（0-1000），并给出审批建议。",
@@ -208,7 +206,6 @@ NODES: list[dict] = [
         "owner": "demo",
         "name": "transaction_anomaly",
         "display_name": "交易异常检测",
-        "type": "risk",
         "status": "active",
         "category": "risk",
         "description": "实时检测单笔交易是否存在欺诈风险，返回风险等级和触发规则列表。",
@@ -282,9 +279,8 @@ NODES: list[dict] = [
         "owner": "alice",
         "name": "data_dedup",
         "display_name": "数据去重清洗",
-        "type": "data_cleaning",
         "status": "active",
-        "category": "data",
+        "category": "data_cleaning",
         "description": "对表格数据进行重复行检测与去除，支持模糊匹配和精确匹配两种模式。",
         "tags": ["data", "cleaning", "dedup"],
         "versions": [
@@ -322,7 +318,6 @@ NODES: list[dict] = [
         "owner": "alice",
         "name": "translate_text",
         "display_name": "多语言文本翻译",
-        "type": "nlp",
         "status": "active",
         "category": "nlp",
         "description": "支持 50+ 语言互译，基于大语言模型，针对金融、法律领域优化。",
@@ -390,9 +385,8 @@ NODES: list[dict] = [
         "owner": "alice",
         "name": "pdf_extractor",
         "display_name": "PDF 结构提取",
-        "type": "tool",
         "status": "draft",
-        "category": "document",
+        "category": "tool",
         "description": "从 PDF 文件中提取文本、表格、图片，输出结构化 JSON，支持中文版面分析。",
         "tags": ["tool", "pdf", "document", "ocr"],
         "versions": [
@@ -426,9 +420,8 @@ NODES: list[dict] = [
         "owner": "demo",
         "name": "address_parser",
         "display_name": "地址解析标准化",
-        "type": "utility",
         "status": "active",
-        "category": "data",
+        "category": "utility",
         "description": "将非结构化中文地址字符串解析为省/市/区/街道/门牌号等标准字段。",
         "tags": ["utility", "address", "nlp", "china"],
         "versions": [
@@ -517,7 +510,28 @@ async def seed(db: AsyncSession) -> None:
         if ns:
             namespaces[u["username"]] = ns
 
-    # 2. 节点
+    # 2. 分类
+    print("\n── 分类 ──────────────────────────────")
+    category_lookup: dict[str, uuid.UUID] = {}
+    for cat_def in DEFAULT_CATEGORIES:
+        result = await db.execute(select(Category).where(Category.name == cat_def["name"]))
+        cat = result.scalar_one_or_none()
+        if cat is None:
+            cat = Category(
+                name=cat_def["name"],
+                display_name=cat_def["display_name"],
+                icon=cat_def["icon"],
+                sort_order=cat_def["sort_order"],
+                is_default=True,
+            )
+            db.add(cat)
+            await db.flush()
+            print(f"  ✓ 创建分类: {cat_def['display_name']} ({cat_def['name']})")
+        else:
+            print(f"  ✓ 已存在分类: {cat_def['display_name']}")
+        category_lookup[cat_def["name"]] = cat.id
+
+    # 3. 节点
     print("\n── 节点 ──────────────────────────────")
     for node_def in NODES:
         owner = users[node_def["owner"]]
@@ -538,9 +552,8 @@ async def seed(db: AsyncSession) -> None:
             name=node_def["name"],
             display_name=node_def["display_name"],
             description=node_def["description"],
-            type=node_def["type"],
             status=node_def["status"],
-            category=node_def["category"],
+            category_id=category_lookup.get(node_def["category"]),
             namespace_id=ns.id,
             owner_id=owner.id,
             invocation_count=sum(len(v["invocations"]) for v in node_def["versions"]),
@@ -590,7 +603,7 @@ async def seed(db: AsyncSession) -> None:
                 total_logs += 1
 
         tags_str = ", ".join(node_def["tags"])
-        print(f"  ✓ 创建节点: {node_def['name']} [{node_def['type']}] | {len(node_def['versions'])} 个版本 | {total_logs} 条日志 | 标签: {tags_str}")
+        print(f"  ✓ 创建节点: {node_def['name']} [{node_def['category']}] | {len(node_def['versions'])} 个版本 | {total_logs} 条日志 | 标签: {tags_str}")
 
     await db.commit()
     print("\n✅ 种子数据写入完成！\n")

@@ -35,24 +35,15 @@
               />
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-              <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">类型</label>
-                <select
-                  v-model="form.type"
-                  class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors appearance-none"
-                >
-                  <option v-for="t in nodeTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
-                </select>
-              </div>
-              <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">分类</label>
-                <input
-                  v-model="form.category"
-                  placeholder="finance"
-                  class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
-                />
-              </div>
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">分类</label>
+              <select
+                v-model="form.category_id"
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors appearance-none cursor-pointer"
+              >
+                <option value="" disabled>请选择分类</option>
+                <option v-for="c in categoryList" :key="c.id" :value="c.id">{{ c.display_name }}</option>
+              </select>
             </div>
 
             <div class="flex flex-col gap-1.5">
@@ -65,32 +56,6 @@
               <p class="text-xs text-gray-400">多个标签用英文逗号分隔</p>
             </div>
 
-            <!-- 技能集 -->
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">技能集</label>
-              <select
-                v-model="form.skill_id"
-                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors appearance-none cursor-pointer"
-              >
-                <option value="">不归属任何技能集</option>
-                <option v-for="sk in skills" :key="sk.id" :value="sk.id">
-                  {{ sk.display_name || sk.name }}
-                </option>
-              </select>
-            </div>
-
-            <!-- 用途提示 -->
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-500 uppercase tracking-wide">用途提示 (usage_hint)</label>
-              <textarea
-                v-model="form.usage_hint"
-                placeholder="向 AI 解释该节点的具体调用场景..."
-                rows="2"
-                maxlength="500"
-                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
-              />
-              <p class="text-xs text-gray-400 text-right">{{ (form.usage_hint || '').length }}/500</p>
-            </div>
           </div>
 
           <!-- 状态 -->
@@ -144,9 +109,9 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getNode, updateNode } from '@/api/nodes'
-import { getSkills } from '@/api/skills'
-import type { NodeItem, NodeType, NodeStatus } from '@/api/nodes'
-import type { SkillItem } from '@/api/skills'
+import { listCategories } from '@/api/categories'
+import type { Category } from '@/api/categories'
+import type { NodeItem, NodeStatus } from '@/api/nodes'
 import BaseButton from '@/components/BaseButton.vue'
 
 const route = useRoute()
@@ -157,29 +122,15 @@ const node = ref<NodeItem | null>(null)
 const loadingNode = ref(true)
 const saving = ref(false)
 const submitError = ref('')
-const skills = ref<SkillItem[]>([])
+const categoryList = ref<Category[]>([])
 
 const form = reactive({
   display_name: '',
   description: '',
-  type: '' as NodeType,
-  category: '',
+  category_id: '',
   status: '' as NodeStatus,
-  skill_id: '',
-  usage_hint: '',
 })
 const tagsRaw = ref('')
-
-const nodeTypes = [
-  { value: 'data_cleaning', label: '数据清洗' },
-  { value: 'analysis', label: '分析' },
-  { value: 'risk', label: '风控' },
-  { value: 'nlp', label: 'NLP' },
-  { value: 'vision', label: '视觉' },
-  { value: 'ml', label: '机器学习' },
-  { value: 'tool', label: '工具' },
-  { value: 'utility', label: '实用程序' },
-]
 
 const nodeStatuses: { value: NodeStatus; label: string; icon: string }[] = [
   { value: 'draft', label: '草稿', icon: '📝' },
@@ -190,20 +141,17 @@ const nodeStatuses: { value: NodeStatus; label: string; icon: string }[] = [
 
 onMounted(async () => {
   try {
-    const [nodeRes, skillList] = await Promise.all([
+    const [nodeRes, catRes] = await Promise.all([
       getNode(nodeId),
-      getSkills().catch(() => [] as SkillItem[]),
+      listCategories().catch(() => ({ data: [] as Category[] })),
     ])
     node.value = nodeRes.data
     form.display_name = nodeRes.data.display_name || ''
     form.description = nodeRes.data.description || ''
-    form.type = nodeRes.data.type
-    form.category = nodeRes.data.category || ''
+    form.category_id = nodeRes.data.category_id || ''
     form.status = nodeRes.data.status
-    form.skill_id = nodeRes.data.skill_id || ''
-    form.usage_hint = nodeRes.data.usage_hint || ''
     tagsRaw.value = (nodeRes.data.tags ?? []).join(', ')
-    skills.value = skillList
+    categoryList.value = catRes.data
   } finally {
     loadingNode.value = false
   }
@@ -220,11 +168,8 @@ async function handleSubmit() {
     await updateNode(nodeId, {
       display_name: form.display_name || undefined,
       description: form.description || undefined,
-      type: form.type,
-      category: form.category || undefined,
+      category_id: form.category_id || undefined,
       status: form.status,
-      skill_id: form.skill_id || undefined,
-      usage_hint: form.usage_hint || undefined,
       tags,
     })
     router.push(`/nodes/${nodeId}`)

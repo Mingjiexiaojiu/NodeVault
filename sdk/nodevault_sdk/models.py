@@ -10,8 +10,7 @@ class NodeResponse(BaseModel):
     name: str
     display_name: str | None = None
     description: str | None = None
-    type: str
-    category: str | None = None
+    category_id: uuid.UUID | None = None
     status: str
     visibility: str
     namespace_id: uuid.UUID

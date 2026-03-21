@@ -20,6 +20,8 @@ export interface SkillNodeItem {
   name: string
   display_name: string | null
   usage_hint: string | null
+  category_name: string | null
+  sort_order: number
 }
 
 export interface SkillVersionCreate {
@@ -49,6 +51,7 @@ export interface SkillItem {
   owner_id: string
   status: string
   is_stale: boolean
+  is_system: boolean
   node_count: number
   latest_version: string | null
   created_at: string
@@ -112,4 +115,23 @@ export async function downloadSkillZip(skillId: string, version?: string): Promi
     responseType: 'blob',
   })
   return res.data
+}
+
+// ---------- M2M: Skill ↔ Node ----------
+
+export interface AddNodePayload {
+  node_id: string
+  usage_hint?: string
+}
+
+export async function addNodeToSkill(skillId: string, payload: AddNodePayload): Promise<void> {
+  await http.post(`/skills/${skillId}/nodes`, payload)
+}
+
+export async function removeNodeFromSkill(skillId: string, nodeId: string): Promise<void> {
+  await http.delete(`/skills/${skillId}/nodes/${nodeId}`)
+}
+
+export async function updateSkillNode(skillId: string, nodeId: string, payload: { usage_hint?: string }): Promise<void> {
+  await http.patch(`/skills/${skillId}/nodes/${nodeId}`, payload)
 }

@@ -172,7 +172,7 @@ async def get_department(
 
     type_counts = {}
     for n in nodes:
-        type_counts[n.type] = type_counts.get(n.type, 0) + 1
+        type_counts[n.visibility] = type_counts.get(n.visibility, 0) + 1
 
     return ApiResponse(data={
         "id": str(ns.id),
@@ -204,7 +204,7 @@ async def get_department(
                 "id": str(n.id),
                 "name": n.name,
                 "display_name": n.display_name,
-                "type": n.type,
+                "type": n.visibility,
                 "status": n.status,
                 "tags": [t.tag for t in n.tags],
                 "created_at": n.created_at.isoformat(),

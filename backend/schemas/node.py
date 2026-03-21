@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from backend.schemas.enums import NodeStatus, NodeType, NodeVisibility
+from backend.schemas.enums import NodeStatus, NodeVisibility
 from backend.schemas.node_schema import NodeSchemaBase
 
 
@@ -16,11 +16,16 @@ class NodeCreate(NodeSchemaBase):
 class NodeUpdate(BaseModel):
     display_name: str | None = None
     description: str | None = None
-    category: str | None = None
+    category_id: uuid.UUID | None = None
     visibility: NodeVisibility | None = None
     status: NodeStatus | None = None
-    skill_id: uuid.UUID | None = None
-    usage_hint: str | None = None
+
+
+class CategoryBrief(BaseModel):
+    id: uuid.UUID
+    display_name: str
+
+    model_config = {"from_attributes": True}
 
 
 class NodeResponse(BaseModel):
@@ -28,8 +33,8 @@ class NodeResponse(BaseModel):
     name: str
     display_name: str | None
     description: str | None
-    type: NodeType
-    category: str | None
+    category_id: uuid.UUID
+    category: CategoryBrief | None = None
     status: NodeStatus
     visibility: NodeVisibility
     namespace_id: uuid.UUID
@@ -40,9 +45,6 @@ class NodeResponse(BaseModel):
     source_credential_id: uuid.UUID | None = None
     source_path: str | None = None
     source_service_name: str | None = None
-    skill_id: uuid.UUID | None = None
-    usage_hint: str | None = None
-    skill_name: str | None = None
     created_at: datetime
     updated_at: datetime
 

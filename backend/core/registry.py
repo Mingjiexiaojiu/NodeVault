@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from backend.models.namespace import Namespace, NamespaceMember
 from backend.models.node import Node, NodeInvocationLog, NodeTag, NodeVersion
 from backend.models.skill import Skill
+from backend.models.skill_node import SkillNode
 from backend.models.user import User
 from backend.schemas.enums import NodeStatus
 from backend.schemas.node import NodeCreate, NodeVersionCreate, NodeVersionUpdate
@@ -72,8 +73,7 @@ class NodeRegistry:
             owner_id=owner.id,
             display_name=payload.display_name,
             description=payload.description,
-            type=payload.type.value,
-            category=payload.category,
+            category_id=payload.category_id,
             status=payload.status.value,
             visibility=payload.visibility.value,
         )
@@ -156,8 +156,7 @@ class NodeRegistry:
                 owner_id=owner.id,
                 display_name=it.get("display_name"),
                 description=it.get("description"),
-                type=it.get("type", "tool"),
-                category=it.get("category"),
+                category_id=it.get("category_id"),
                 status="active",
                 visibility=it.get("visibility", "internal"),
                 source_credential_id=credential_id,
@@ -189,7 +188,7 @@ class NodeRegistry:
     async def list_nodes(
         self,
         owner: User,
-        type: str | None = None,
+        category_id: uuid.UUID | None = None,
         status: str | None = None,
         tag: str | None = None,
         page: int = 1,
@@ -205,7 +204,7 @@ class NodeRegistry:
                 select(Node)
                 .where(Node.namespace_id.in_(ns_ids))
                 .where(Node.status != NodeStatus.ARCHIVED.value)
-                .options(selectinload(Node.tags), selectinload(Node.namespace))
+                .options(selectinload(Node.tags), selectinload(Node.namespace), selectinload(Node.category_rel))
             )
         else:
             # public/internal nodes are visible to all authenticated users; private nodes only to members
@@ -219,10 +218,10 @@ class NodeRegistry:
                     )
                 )
                 .where(Node.status != NodeStatus.ARCHIVED.value)
-                .options(selectinload(Node.tags), selectinload(Node.namespace))
+                .options(selectinload(Node.tags), selectinload(Node.namespace), selectinload(Node.category_rel))
             )
-        if type:
-            stmt = stmt.where(Node.type == type)
+        if category_id:
+            stmt = stmt.where(Node.category_id == category_id)
         if status:
             stmt = stmt.where(Node.status == status)
         if tag:
@@ -242,6 +241,7 @@ class NodeRegistry:
                 selectinload(Node.tags),
                 selectinload(Node.versions),
                 selectinload(Node.namespace),
+                selectinload(Node.category_rel),
             )
         )
         return result.scalar_one_or_none()
@@ -252,9 +252,9 @@ class NodeRegistry:
             raise ValueError("Node not found")
         await self._check_namespace_permission(node, owner)
 
-        allowed = {"display_name", "description", "category", "visibility", "status", "skill_id", "usage_hint"}
-        stale_triggers = {"skill_id", "usage_hint", "description"}
-        old_skill_id = node.skill_id
+        allowed = {"display_name", "description", "category_id", "visibility", "status"}
+        stale_triggers = {"description"}
+        old_skill_id = None
         changed_stale = False
         for field, value in payload.items():
             if field in allowed and value is not None:
@@ -266,13 +266,13 @@ class NodeRegistry:
         await self.db.commit()
         await self.db.refresh(node)
 
-        # Trigger is_stale on affected Skill(s)
+        # Trigger is_stale on affected Skill(s) via skill_nodes
         if changed_stale:
-            skill_ids_to_mark = set()
-            if old_skill_id:
-                skill_ids_to_mark.add(old_skill_id)
-            if node.skill_id:
-                skill_ids_to_mark.add(node.skill_id)
+            from sqlalchemy import select as sa_select
+            result = await self.db.execute(
+                sa_select(SkillNode.skill_id).where(SkillNode.node_id == node_id)
+            )
+            skill_ids_to_mark = set(result.scalars().all())
             for sid in skill_ids_to_mark:
                 await self.db.execute(
                     update(Skill).where(Skill.id == sid).values(is_stale=True)

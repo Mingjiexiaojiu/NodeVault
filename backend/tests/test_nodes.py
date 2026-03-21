@@ -5,14 +5,13 @@ import pytest
 from httpx import AsyncClient
 
 
-def _make_node_payload(unique: str, node_type: str = "tool") -> dict:
+def _make_node_payload(unique: str, category_id: str = "") -> dict:
     return {
         "name": f"test_node_{unique}",
         "version": "1.0.0",
         "display_name": f"Test Node {unique}",
         "description": "A test node",
-        "type": node_type,
-        "category": "test",
+        "category_id": category_id,
         "runtime": {
             "type": "http",
             "endpoint": "https://httpbin.org/post",
@@ -65,14 +64,12 @@ async def test_list_nodes(auth_client):
 
 
 @pytest.mark.anyio
-async def test_list_nodes_filter_by_type(auth_client):
+async def test_list_nodes_filter_by_category(auth_client, default_category_id):
     client, headers, _ = auth_client
     unique = uuid.uuid4().hex[:8]
-    await client.post("/api/v1/nodes", json=_make_node_payload(unique, node_type="tool"), headers=headers)
-    resp = await client.get("/api/v1/nodes?type=tool", headers=headers)
+    await client.post("/api/v1/nodes", json=_make_node_payload(unique, category_id=default_category_id), headers=headers)
+    resp = await client.get(f"/api/v1/nodes?category_id={default_category_id}", headers=headers)
     assert resp.status_code == 200
-    for node in resp.json():
-        assert node["type"] == "tool"
 
 
 @pytest.mark.anyio

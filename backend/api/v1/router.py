@@ -3,6 +3,7 @@
 from backend.api.v1.agent import router as agent_router
 from backend.api.v1.ai_configs import router as ai_configs_router
 from backend.api.v1.auth import router as auth_router
+from backend.api.v1.categories import router as categories_router
 from backend.api.v1.credentials import router as credentials_router
 from backend.api.v1.departments import router as departments_router
 from backend.api.v1.discovery import router as discovery_router
@@ -20,6 +21,7 @@ api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(auth_router)
 api_router.include_router(ai_configs_router)
+api_router.include_router(categories_router)
 api_router.include_router(credentials_router)
 api_router.include_router(departments_router)
 api_router.include_router(discovery_router)

@@ -85,30 +85,21 @@
 
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                类型 <span class="text-red-500">*</span>
+                分类 <span class="text-red-500">*</span>
               </label>
               <select
-                v-model="form.type"
+                v-model="form.category_id"
                 :class="[
                   'block w-full rounded-lg border px-3 py-2.5 text-sm focus:outline-none focus:ring-2 transition-colors appearance-none cursor-pointer',
-                  errors.type
+                  errors.category_id
                     ? 'border-red-300 bg-red-50 focus:ring-red-400'
                     : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-indigo-400 focus:border-indigo-400'
                 ]"
               >
-                <option value="" disabled>请选择节点类型</option>
-                <option v-for="t in nodeTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+                <option value="" disabled>请选择分类</option>
+                <option v-for="c in categoryList" :key="c.id" :value="c.id">{{ c.display_name }}</option>
               </select>
-              <p v-if="errors.type" class="text-xs text-red-500">{{ errors.type }}</p>
-            </div>
-
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">分类</label>
-              <input
-                v-model="form.category"
-                placeholder="finance"
-                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
-              />
+              <p v-if="errors.category_id" class="text-xs text-red-500">{{ errors.category_id }}</p>
             </div>
 
             <div class="flex flex-col gap-1.5">
@@ -129,34 +120,6 @@
                 rows="3"
                 class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
               />
-            </div>
-
-            <!-- 技能集 -->
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">技能集</label>
-              <select
-                v-model="form.skill_id"
-                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors appearance-none cursor-pointer"
-              >
-                <option value="">不归属任何技能集</option>
-                <option v-for="sk in skills" :key="sk.id" :value="sk.id">
-                  {{ sk.display_name || sk.name }}
-                </option>
-              </select>
-              <p class="text-xs text-gray-400">将节点归类到某个 Agent 技能集，方便 AI 发现和调用</p>
-            </div>
-
-            <!-- 用途提示 -->
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">用途提示 (usage_hint)</label>
-              <textarea
-                v-model="form.usage_hint"
-                placeholder="向 AI 解释该节点的具体应用场景，例如：用于分析信贷申请人的收入流水..."
-                rows="2"
-                maxlength="500"
-                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
-              />
-              <p class="text-xs text-gray-400 text-right">{{ form.usage_hint.length }}/500</p>
             </div>
           </div>
         </section>
@@ -312,9 +275,8 @@
 import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createNode } from '@/api/nodes'
-import { getSkills } from '@/api/skills'
-import type { NodeType } from '@/api/nodes'
-import type { SkillItem } from '@/api/skills'
+import { listCategories } from '@/api/categories'
+import type { Category } from '@/api/categories'
 import BaseButton from '@/components/BaseButton.vue'
 
 const router = useRouter()
@@ -328,11 +290,12 @@ const activeSection = ref('basic')
 
 const defaultSchema = '{\n  "type": "object",\n  "properties": {}\n}'
 
-const skills = ref<SkillItem[]>([])
+const categoryList = ref<Category[]>([])
 
 onMounted(async () => {
   try {
-    skills.value = await getSkills()
+    const res = await listCategories()
+    categoryList.value = res.data
   } catch {
     // 非关键性错误，静默处理
   }
@@ -343,11 +306,8 @@ const form = reactive({
   version: '1.0.0',
   display_name: '',
   description: '',
-  type: '' as NodeType | '',
-  category: '',
+  category_id: '',
   tagsRaw: '',
-  skill_id: '',
-  usage_hint: '',
   runtime: { type: 'http', endpoint: '', method: 'POST' },
   inputSchemaRaw: defaultSchema,
   outputSchemaRaw: defaultSchema,
@@ -380,25 +340,14 @@ function handleOutputSchema(e: Event) {
   }
 }
 
-const errors = reactive({ name: '', version: '', type: '', endpoint: '' })
+const errors = reactive({ name: '', version: '', category_id: '', endpoint: '' })
 const submitError = ref('')
 const loading = ref(false)
-
-const nodeTypes = [
-  { value: 'data_cleaning', label: '数据清洗' },
-  { value: 'analysis', label: '分析' },
-  { value: 'risk', label: '风控' },
-  { value: 'nlp', label: 'NLP' },
-  { value: 'vision', label: '视觉' },
-  { value: 'ml', label: '机器学习' },
-  { value: 'tool', label: '工具' },
-  { value: 'utility', label: '实用程序' },
-]
 
 function validate(): boolean {
   errors.name = ''
   errors.version = ''
-  errors.type = ''
+  errors.category_id = ''
   errors.endpoint = ''
 
   const nameRegex = /^[a-z][a-z0-9_]{2,63}$/
@@ -407,8 +356,8 @@ function validate(): boolean {
     activeSection.value = 'basic'
     return false
   }
-  if (!form.type) {
-    errors.type = '请选择类型'
+  if (!form.category_id) {
+    errors.category_id = '请选择分类'
     activeSection.value = 'basic'
     return false
   }
@@ -435,11 +384,8 @@ async function handleSubmit() {
       version: form.version || undefined,
       display_name: form.display_name || undefined,
       description: form.description || undefined,
-      type: form.type as NodeType,
-      category: form.category || undefined,
+      category_id: form.category_id,
       tags,
-      skill_id: form.skill_id || undefined,
-      usage_hint: form.usage_hint || undefined,
       runtime: {
         type: form.runtime.type,
         endpoint: form.runtime.endpoint,

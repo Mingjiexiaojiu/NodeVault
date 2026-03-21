@@ -1,14 +1,14 @@
 ## Requirements
 
 ### Requirement: 生成 SKILL.md 草稿
-系统 SHALL 提供 `POST /api/v1/skills/{skill_id}/generate` 端点（需认证），收集 Skill 下所有 active 节点的 metadata 后调用外部 LLM，生成标准 Agent Skills 格式的 SKILL.md 草稿文本，不自动发布版本。
+系统 SHALL 提供 `POST /api/v1/skills/{skill_id}/generate` 端点（需认证），从 skill_nodes 关联表收集 Skill 下所有 active 节点的 metadata（含关联表中的 usage_hint）后调用外部 LLM，生成标准 Agent Skills 格式的 SKILL.md 草稿文本，不自动发布版本。
 
 #### Scenario: 生成成功
 - **WHEN** 已认证用户调用 POST /api/v1/skills/{skill_id}/generate
-- **THEN** 系统 SHALL 收集节点的 name/display_name/description/usage_hint/input_schema/output_schema，调用 LLM，返回 200 和 `{"skill_md": "<生成的SKILL.md完整文本>", "suggested_version": "x.y.z"}`
+- **THEN** 系统 SHALL 从 skill_nodes JOIN nodes 收集节点的 name/display_name/description/input_schema/output_schema，以及 skill_nodes.usage_hint，调用 LLM，返回 200 和 `{"skill_md": "<生成的SKILL.md完整文本>", "suggested_version": "x.y.z"}`
 
 #### Scenario: Skill 下没有 active 节点
-- **WHEN** Skill 下没有 status=active 的节点
+- **WHEN** Skill 在 skill_nodes 中没有关联的 status=active 节点
 - **THEN** 系统 SHALL 返回 422，提示"技能集中没有可用节点"
 
 #### Scenario: LLM 调用失败
@@ -20,7 +20,7 @@
 - **THEN** 系统 SHALL 返回 409，提示"该技能集正在生成中"
 
 ### Requirement: SKILL.md 内容标准
-生成的 SKILL.md SHALL 包含：YAML frontmatter（name/description/trigger_keywords/metadata）、环境配置说明（.env 变量）、每个节点的 REST 调用文档（场景描述 + POST 接口路径 + 入参表 + 出参表 + 请求/响应示例）、工具组合使用示例。
+生成的 SKILL.md SHALL 包含：YAML frontmatter（name/description/trigger_keywords/metadata）、环境配置说明（.env 变量）、每个节点的 REST 调用文档（场景描述基于 skill_nodes.usage_hint + POST 接口路径 + 入参表 + 出参表 + 请求/响应示例）、工具组合使用示例。
 
 #### Scenario: frontmatter 字段完整
 - **WHEN** 生成成功
@@ -31,5 +31,5 @@
 - **THEN** 对应章节 SHALL 包含 Markdown 表格，列为：字段名、类型、是否必填、说明
 
 #### Scenario: usage_hint 为空时仍能生成
-- **WHEN** 部分节点的 usage_hint 为空
+- **WHEN** 部分节点在 skill_nodes 中的 usage_hint 为空
 - **THEN** 系统 SHALL 仅基于 description 和 schema 推断场景描述，不报错

@@ -26,6 +26,8 @@
               :class="String(route.name).startsWith('discover') ? 'text-indigo-700 bg-indigo-50 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'">发现</RouterLink>
             <RouterLink to="/skills" class="px-3.5 py-1.5 text-sm font-medium rounded-lg transition-all duration-150"
               :class="String(route.name).startsWith('skill') ? 'text-indigo-700 bg-indigo-50 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'">技能</RouterLink>
+            <RouterLink v-if="auth.user && auth.user.role <= 1" to="/categories" class="px-3.5 py-1.5 text-sm font-medium rounded-lg transition-all duration-150"
+              :class="route.name === 'categories' ? 'text-indigo-700 bg-indigo-50 font-semibold' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-50'">分类</RouterLink>
           </div>
 
           <!-- 用户信息 -->

@@ -76,3 +76,14 @@ async def auth_client(client: AsyncClient):
     headers = {"Authorization": f"Bearer {token}"}
     return client, headers, user_data
 
+
+@pytest.fixture
+async def default_category_id(auth_client) -> str:
+    """获取一个默认分类的 ID（由 Alembic 迁移种子创建）。"""
+    client, headers, _ = auth_client
+    resp = await client.get("/api/v1/categories", headers=headers)
+    assert resp.status_code == 200, resp.text
+    categories = resp.json()
+    assert len(categories) > 0, "默认分类应由 Alembic 迁移种子创建"
+    return categories[0]["id"]
+

@@ -104,3 +104,19 @@ The system SHALL allow creating and selecting credentials during the discovery w
 #### Scenario: Create credential during auth flow
 - **WHEN** user provides authentication details during discovery
 - **THEN** system SHALL automatically create a `service_credential` record for future use
+
+### Requirement: 服务发现流程页面
+前端 SHALL 在 /discovery 页面提供完整的服务发现流程，导入节点时使用动态分类选择器（从 GET /api/v1/categories 加载），替代旧的 NodeType 枚举类型选择器。
+
+### Requirement: 重复 URL 检测与提示
+在用户输入 base_url 点击「探测」之前，前端 SHALL 检测该 URL 是否已被注册过，并给出交互提示。
+
+#### Scenario: URL 已注册过
+- **WHEN** 系统检测到该 base_url 已有注册节点
+- **THEN** 前端 SHALL 弹出对话框提示，提供「迭代更新」、「重新导入」、「取消」三个选项
+
+### Requirement: 迭代比对差异视图
+当用户选择「迭代更新」后，前端 SHALL 展示新旧探测结果的差异视图，带状态 badge（new 绿/updated 黄/imported 灰/removed 红）。
+
+### Requirement: 探测失败时展示结构化错误信息
+前端 SHALL 根据 ProbeResult.error_type 展示对应的用户友好提示和重试按钮。

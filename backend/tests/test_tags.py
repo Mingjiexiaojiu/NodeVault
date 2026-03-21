@@ -9,14 +9,13 @@ from unittest.mock import patch
 import pytest
 
 
-def _make_node_payload(unique: str, tags: list | None = None) -> dict:
+def _make_node_payload(unique: str, category_id: str = "", tags: list | None = None) -> dict:
     payload = {
         "name": f"tag_node_{unique}",
         "version": "1.0.0",
         "display_name": f"Tag Node {unique}",
         "description": "test node for tags",
-        "type": "tool",
-        "category": "test",
+        "category_id": category_id,
         "status": "active",
         "runtime": {
             "type": "http",

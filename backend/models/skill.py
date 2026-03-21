@@ -24,14 +24,16 @@ class Skill(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False, index=True)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_stale: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    nodes: Mapped[list["Node"]] = relationship(  # noqa: F821
-        "Node", back_populates="skill", foreign_keys="Node.skill_id"
+    skill_nodes: Mapped[list["SkillNode"]] = relationship(  # noqa: F821
+        "SkillNode", back_populates="skill", cascade="all, delete-orphan",
+        order_by="SkillNode.sort_order"
     )
     versions: Mapped[list["SkillVersion"]] = relationship(
         "SkillVersion", back_populates="skill", cascade="all, delete-orphan",

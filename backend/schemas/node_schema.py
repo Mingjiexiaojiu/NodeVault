@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from backend.schemas.enums import (
     HttpMethod,
     NodeStatus,
-    NodeType,
     NodeVisibility,
     RuntimeType,
 )
@@ -52,12 +51,9 @@ class NodeSchemaBase(BaseModel):
     description: str | None = None
 
     # Classification
-    type: NodeType
+    category_id: uuid.UUID
     tags: list[str] = Field(default_factory=list)
-    category: str | None = None
     keywords: list[str] = Field(default_factory=list)
-    skill_id: uuid.UUID | None = None
-    usage_hint: str | None = Field(default=None, max_length=500)
 
     # Ownership
     author: str | None = None

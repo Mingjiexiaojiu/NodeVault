@@ -18,6 +18,7 @@ from backend.database.base import Base
 from backend.schemas.enums import NodeStatus, NodeVisibility
 
 
+
 class Node(Base):
     __tablename__ = "nodes"
 
@@ -33,8 +34,9 @@ class Node(Base):
     )
     display_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    category: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("categories.id"), nullable=False, index=True
+    )
     status: Mapped[str] = mapped_column(
         String(32), default=NodeStatus.DRAFT.value, nullable=False, index=True
     )
@@ -49,13 +51,6 @@ class Node(Base):
         index=True,
     )
     source_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
-    skill_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("skills.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    usage_hint: Mapped[str | None] = mapped_column(String(500), nullable=True)
     discovery_session_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("discovery_sessions.id", ondelete="SET NULL"),
@@ -73,11 +68,14 @@ class Node(Base):
     owner: Mapped["User"] = relationship(  # noqa: F821
         "User", foreign_keys=[owner_id], lazy="joined",
     )
+    category_rel: Mapped["Category"] = relationship(  # noqa: F821
+        "Category", back_populates="nodes", foreign_keys=[category_id], lazy="joined"
+    )
     source_credential: Mapped["ServiceCredential | None"] = relationship(  # noqa: F821
         "ServiceCredential", foreign_keys=[source_credential_id], lazy="joined"
     )
-    skill: Mapped["Skill | None"] = relationship(  # noqa: F821
-        "Skill", foreign_keys=[skill_id], back_populates="nodes", lazy="joined"
+    skill_nodes: Mapped[list["SkillNode"]] = relationship(  # noqa: F821
+        "SkillNode", back_populates="node", cascade="all, delete-orphan"
     )
     discovery_session: Mapped["DiscoverySession | None"] = relationship(  # noqa: F821
         "DiscoverySession", foreign_keys=[discovery_session_id], back_populates="nodes"

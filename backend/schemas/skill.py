@@ -36,6 +36,7 @@ class SkillResponse(BaseModel):
     namespace_id: uuid.UUID
     owner_id: uuid.UUID
     status: str
+    is_system: bool
     is_stale: bool
     node_count: int = 0
     latest_version: str | None = None
@@ -50,6 +51,7 @@ class SkillNodeItem(BaseModel):
     name: str
     display_name: str | None
     usage_hint: str | None
+    category_name: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -57,6 +59,28 @@ class SkillNodeItem(BaseModel):
 class SkillDetailResponse(SkillResponse):
     nodes: list[SkillNodeItem] = []
     versions: list["SkillVersionResponse"] = []
+
+
+class SkillNodeCreate(BaseModel):
+    node_id: uuid.UUID
+    usage_hint: str | None = None
+
+
+class SkillNodeUpdate(BaseModel):
+    usage_hint: str | None = None
+
+
+class SkillNodeRead(BaseModel):
+    id: uuid.UUID
+    skill_id: uuid.UUID
+    node_id: uuid.UUID
+    usage_hint: str | None
+    sort_order: int
+    node_name: str | None = None
+    node_display_name: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
 
 
 class SkillVersionCreate(BaseModel):

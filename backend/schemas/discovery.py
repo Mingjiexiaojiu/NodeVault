@@ -8,6 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from backend.schemas.enums import ProbeErrorType
+
 
 # ---------- Probe ----------
 
@@ -39,6 +41,7 @@ class ProbeResultSchema(BaseModel):
     spec_url: str | None = None
     needs_auth: bool = False
     error: str | None = None
+    error_type: ProbeErrorType | None = None
     attempts: list[ProbeAttemptSchema] = []
 
 
@@ -74,7 +77,7 @@ class BatchImportItem(BaseModel):
     method: str
     input_schema: dict[str, Any] = {}
     output_schema: dict[str, Any] = {}
-    category: str | None = None
+    category_id: uuid.UUID | None = None
     tags: list[str] = []
     source_path: str | None = None
 
@@ -143,3 +146,44 @@ class DiscoverySessionSchema(BaseModel):
 
 class DiscoverySessionDetail(DiscoverySessionSchema):
     nodes: list[LinkedNodeSchema] = []
+
+
+# ---------- Iteration / Compare ----------
+
+
+class CompareRequest(BaseModel):
+    previous_session_id: uuid.UUID
+
+
+class CompareResultItem(BaseModel):
+    path: str
+    method: str
+    status: str  # "new" | "imported" | "updated" | "removed"
+    changes: dict[str, str] | None = None
+
+
+class CompareResponse(BaseModel):
+    items: list[CompareResultItem]
+
+
+class IterateActionItem(BaseModel):
+    path: str
+    method: str
+    action: str  # "import" | "update" | "skip"
+
+
+class IterateRequest(BaseModel):
+    actions: list[IterateActionItem] = Field(..., min_length=1)
+
+
+class IterateResponse(BaseModel):
+    imported: int
+    updated: int
+    skipped: int
+
+
+class DuplicateUrlResponse(BaseModel):
+    duplicate: bool
+    existing_session_id: uuid.UUID | None = None
+    existing_count: int = 0
+    message: str = ""

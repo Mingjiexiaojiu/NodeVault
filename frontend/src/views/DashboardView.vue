@@ -114,7 +114,7 @@
           class="flex items-center justify-between py-3 px-3 hover:bg-indigo-50/50 rounded-xl transition-colors"
         >
           <div class="flex items-center gap-3">
-            <TypeBadge :type="node.type" />
+            <TypeBadge :category="node.category" />
             <span class="text-sm font-medium text-gray-900">{{ node.display_name || node.name }}</span>
           </div>
           <div class="flex items-center gap-3">

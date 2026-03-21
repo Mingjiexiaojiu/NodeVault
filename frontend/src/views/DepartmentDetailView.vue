@@ -194,7 +194,17 @@
       </div>
     </template>
 
-    <div v-else class="text-center py-20 text-red-500">部门不存在</div>
+    <div v-else class="flex flex-col items-center justify-center py-24 gap-4">
+      <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center">
+        <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v3m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+      </div>
+      <p class="text-gray-700 font-medium">{{ loadError || '部门不存在' }}</p>
+      <button @click="$router.push('/departments')" class="px-4 py-2 text-sm text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors">
+        返回部门列表
+      </button>
+    </div>
   </div>
 </template>
 
@@ -211,6 +221,7 @@ const deptId = route.params.id as string
 
 const dept = ref<DepartmentDetail | null>(null)
 const loading = ref(true)
+const loadError = ref<string | null>(null)
 const activeTab = ref<'members' | 'nodes'>('nodes')
 
 const tabs = computed(() => [
@@ -229,11 +240,22 @@ function formatDate(iso: string) {
 
 async function loadDept() {
   loading.value = true
+  loadError.value = null
   try {
     const res = await getDepartment(deptId)
     dept.value = res.data
-  } catch {
+  } catch (e: any) {
     dept.value = null
+    const status = e?.response?.status
+    if (status === 404) {
+      loadError.value = '部门不存在或已被删除'
+    } else if (status === 403) {
+      loadError.value = '无权限访问该部门'
+    } else if (status === 401) {
+      loadError.value = '请先登录'
+    } else {
+      loadError.value = e?.uiMessage || '加载失败，请稍后重试'
+    }
   } finally {
     loading.value = false
   }

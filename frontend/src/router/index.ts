@@ -119,6 +119,12 @@ const router = createRouter({
       meta: { layout: 'app' },
     },
     {
+      path: '/categories',
+      name: 'categories',
+      component: () => import('@/views/CategoryManageView.vue'),
+      meta: { layout: 'app' },
+    },
+    {
       path: '/skills/:id',
       name: 'skill-detail',
       component: () => import('@/views/SkillDetailView.vue'),
@@ -145,6 +151,11 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.public && auth.token) {
+    return { name: 'dashboard' }
+  }
+
+  // Role guard: categories page requires role <= 1
+  if (to.name === 'categories' && auth.user && auth.user.role > 1) {
     return { name: 'dashboard' }
   }
 })

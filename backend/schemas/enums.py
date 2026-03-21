@@ -1,17 +1,6 @@
 from enum import Enum
 
 
-class NodeType(str, Enum):
-    DATA_CLEANING = "data_cleaning"
-    ANALYSIS = "analysis"
-    RISK = "risk"
-    NLP = "nlp"
-    VISION = "vision"
-    ML = "ml"
-    TOOL = "tool"
-    UTILITY = "utility"
-
-
 class RuntimeType(str, Enum):
     HTTP = "http"
     GRPC = "grpc"
@@ -39,3 +28,12 @@ class HttpMethod(str, Enum):
     PUT = "PUT"
     PATCH = "PATCH"
     DELETE = "DELETE"
+
+
+class ProbeErrorType(str, Enum):
+    CONNECTION_REFUSED = "connection_refused"
+    TIMEOUT = "timeout"
+    DNS_ERROR = "dns_error"
+    SSL_ERROR = "ssl_error"
+    SPEC_NOT_FOUND = "spec_not_found"
+    PARSE_ERROR = "parse_error"

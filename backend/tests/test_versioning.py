@@ -108,14 +108,13 @@ def test_suggest_version_bump_patch():
 # ---------------------------------------------------------------------------
 
 
-def _make_node_payload(unique: str) -> dict:
+def _make_node_payload(unique: str, category_id: str = "") -> dict:
     return {
         "name": f"ver_node_{unique}",
         "version": "1.0.0",
         "display_name": f"Version Node {unique}",
         "description": "test node for versioning",
-        "type": "tool",
-        "category": "test",
+        "category_id": category_id,
         "runtime": {
             "type": "http",
             "endpoint": "https://httpbin.org/post",

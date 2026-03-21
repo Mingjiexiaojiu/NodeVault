@@ -9,7 +9,7 @@ import zipfile
 import structlog
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
-from sqlalchemy import select as sa_select
+from sqlalchemy import func, select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.deps import get_current_user
@@ -18,12 +18,15 @@ from backend.core.skill_registry import SkillRegistry
 from backend.database.session import get_db
 from backend.models.ai_config import UserAIConfig
 from backend.models.skill import Skill, SkillVersion
+from backend.models.skill_node import SkillNode
 from backend.models.user import User
 from backend.schemas.response import ApiResponse
 from backend.schemas.skill import (
     SkillCreate,
     SkillDetailResponse,
+    SkillNodeCreate,
     SkillNodeItem,
+    SkillNodeUpdate,
     SkillResponse,
     SkillUpdate,
     SkillVersionCreate,
@@ -70,6 +73,7 @@ def _skill_to_response(skill: Skill, node_count: int = 0, latest_version: str | 
         namespace_id=skill.namespace_id,
         owner_id=skill.owner_id,
         status=skill.status,
+        is_system=skill.is_system,
         is_stale=skill.is_stale,
         node_count=node_count,
         latest_version=latest_version,
@@ -85,12 +89,14 @@ def _skill_to_detail(skill: Skill) -> SkillDetailResponse:
     )
     nodes = [
         SkillNodeItem(
-            id=n.id,
-            name=n.name,
-            display_name=n.display_name,
-            usage_hint=n.usage_hint,
+            id=sn.node.id,
+            name=sn.node.name,
+            display_name=sn.node.display_name,
+            usage_hint=sn.usage_hint,
+            category_name=sn.node.category_rel.display_name if sn.node.category_rel else None,
         )
-        for n in (skill.nodes or [])
+        for sn in (skill.skill_nodes or [])
+        if sn.node is not None
     ]
     versions = [_version_to_response(v) for v in (skill.versions or [])]
     return SkillDetailResponse(
@@ -101,8 +107,9 @@ def _skill_to_detail(skill: Skill) -> SkillDetailResponse:
         namespace_id=skill.namespace_id,
         owner_id=skill.owner_id,
         status=skill.status,
+        is_system=skill.is_system,
         is_stale=skill.is_stale,
-        node_count=len(skill.nodes or []),
+        node_count=len(nodes),
         latest_version=default_ver.version if default_ver else None,
         created_at=skill.created_at,
         updated_at=skill.updated_at,
@@ -197,6 +204,14 @@ async def delete_skill(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Response:
+    # Protect system skills from deletion
+    result = await db.execute(sa_select(Skill).where(Skill.id == skill_id))
+    skill = result.scalar_one_or_none()
+    if skill is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="技能集不存在")
+    if skill.is_system:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="系统技能集不可删除")
+
     registry = SkillRegistry(db)
     try:
         await registry.archive_skill(skill_id, current_user)
@@ -332,4 +347,132 @@ async def export_skill_zip(
         content=buf.read(),
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Skill-Node M2M Management
+# ---------------------------------------------------------------------------
+
+@router.post("/{skill_id}/nodes", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
+async def add_skill_node(
+    skill_id: uuid.UUID,
+    payload: SkillNodeCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ApiResponse:
+    """向技能集添加节点（创建 SkillNode 关联）。"""
+    registry = SkillRegistry(db)
+    skill = await registry.get_skill(skill_id)
+    if skill is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="技能集不存在")
+
+    # Check duplicate
+    existing = await db.execute(
+        sa_select(SkillNode).where(
+            SkillNode.skill_id == skill_id,
+            SkillNode.node_id == payload.node_id,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该节点已在此技能集中")
+
+    # Verify node exists
+    from backend.models.node import Node
+    node_result = await db.execute(sa_select(Node).where(Node.id == payload.node_id))
+    if node_result.scalar_one_or_none() is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="节点不存在")
+
+    max_sort = await db.execute(
+        sa_select(func.coalesce(func.max(SkillNode.sort_order), 0)).where(
+            SkillNode.skill_id == skill_id,
+        )
+    )
+    next_sort = max_sort.scalar() + 1
+
+    sn = SkillNode(
+        skill_id=skill_id,
+        node_id=payload.node_id,
+        usage_hint=payload.usage_hint,
+        sort_order=next_sort,
+    )
+    db.add(sn)
+
+    # Mark skill as stale
+    skill.is_stale = True
+    await db.commit()
+    await db.refresh(sn)
+
+    return ApiResponse(
+        data={"id": str(sn.id), "skill_id": str(sn.skill_id), "node_id": str(sn.node_id),
+              "usage_hint": sn.usage_hint, "sort_order": sn.sort_order},
+        message="节点已添加到技能集",
+    )
+
+
+@router.delete("/{skill_id}/nodes/{node_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_skill_node(
+    skill_id: uuid.UUID,
+    node_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Response:
+    """从技能集移除节点。"""
+    result = await db.execute(
+        sa_select(SkillNode).where(
+            SkillNode.skill_id == skill_id,
+            SkillNode.node_id == node_id,
+        )
+    )
+    sn = result.scalar_one_or_none()
+    if sn is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该节点不在此技能集中")
+
+    await db.delete(sn)
+
+    # Mark skill as stale
+    skill_result = await db.execute(sa_select(Skill).where(Skill.id == skill_id))
+    skill = skill_result.scalar_one_or_none()
+    if skill:
+        skill.is_stale = True
+
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/{skill_id}/nodes/{node_id}", response_model=ApiResponse)
+async def update_skill_node(
+    skill_id: uuid.UUID,
+    node_id: uuid.UUID,
+    payload: SkillNodeUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ApiResponse:
+    """更新技能集中某节点的 usage_hint。"""
+    result = await db.execute(
+        sa_select(SkillNode).where(
+            SkillNode.skill_id == skill_id,
+            SkillNode.node_id == node_id,
+        )
+    )
+    sn = result.scalar_one_or_none()
+    if sn is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="该节点不在此技能集中")
+
+    if payload.usage_hint is not None:
+        sn.usage_hint = payload.usage_hint
+
+    # Mark skill as stale
+    skill_result = await db.execute(sa_select(Skill).where(Skill.id == skill_id))
+    skill = skill_result.scalar_one_or_none()
+    if skill:
+        skill.is_stale = True
+
+    await db.commit()
+    await db.refresh(sn)
+
+    return ApiResponse(
+        data={"id": str(sn.id), "skill_id": str(sn.skill_id), "node_id": str(sn.node_id),
+              "usage_hint": sn.usage_hint, "sort_order": sn.sort_order},
+        message="usage_hint 已更新",
     )

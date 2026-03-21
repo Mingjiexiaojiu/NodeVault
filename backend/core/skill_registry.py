@@ -12,6 +12,7 @@ from sqlalchemy.orm import selectinload
 from backend.models.namespace import Namespace, NamespaceMember
 from backend.models.node import Node, NodeVersion
 from backend.models.skill import Skill, SkillVersion
+from backend.models.skill_node import SkillNode
 from backend.models.user import User
 from backend.schemas.skill import SkillCreate, SkillUpdate, SkillVersionCreate
 
@@ -46,7 +47,10 @@ class SkillRegistry:
     async def _get_skill(self, skill_id: uuid.UUID) -> Skill | None:
         result = await self.db.execute(
             select(Skill)
-            .options(selectinload(Skill.nodes), selectinload(Skill.versions))
+            .options(
+                selectinload(Skill.skill_nodes).selectinload(SkillNode.node).selectinload(Node.category_rel),
+                selectinload(Skill.versions),
+            )
             .where(Skill.id == skill_id)
         )
         return result.scalar_one_or_none()
@@ -103,7 +107,10 @@ class SkillRegistry:
 
         result = await self.db.execute(
             select(Skill)
-            .options(selectinload(Skill.nodes), selectinload(Skill.versions))
+            .options(
+                selectinload(Skill.skill_nodes).selectinload(SkillNode.node).selectinload(Node.category_rel),
+                selectinload(Skill.versions),
+            )
             .where(Skill.namespace_id.in_(ns_ids), Skill.status != "archived")
             .offset(skip)
             .limit(limit)
@@ -117,7 +124,7 @@ class SkillRegistry:
             )
             out.append((
                 skill,
-                len(skill.nodes),
+                len(skill.skill_nodes),
                 default_ver.version if default_ver else None,
             ))
         return out
@@ -209,13 +216,19 @@ class SkillRegistry:
         return version
 
     async def _build_node_snapshot(self, skill_id: uuid.UUID) -> list[dict[str, Any]]:
-        """构建节点快照：查询当前技能集所有节点及其默认版本。"""
+        """构建节点快照：从 skill_nodes M2M 关联查询节点及默认版本，含 usage_hint。"""
         result = await self.db.execute(
-            select(Node).where(Node.skill_id == skill_id)
+            select(SkillNode)
+            .options(selectinload(SkillNode.node))
+            .where(SkillNode.skill_id == skill_id)
+            .order_by(SkillNode.sort_order)
         )
-        nodes = list(result.scalars().all())
+        skill_nodes = list(result.scalars().all())
         snapshot = []
-        for node in nodes:
+        for sn in skill_nodes:
+            node = sn.node
+            if node is None:
+                continue
             # Get default version
             ver_result = await self.db.execute(
                 select(NodeVersion).where(
@@ -228,6 +241,7 @@ class SkillRegistry:
                 "node_id": str(node.id),
                 "node_name": node.name,
                 "node_display_name": node.display_name,
+                "usage_hint": sn.usage_hint,
                 "node_version_id": str(default_ver.id) if default_ver else None,
                 "node_version": default_ver.version if default_ver else None,
             })
