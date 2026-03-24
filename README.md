@@ -200,6 +200,8 @@ uvicorn backend.main:app --reload --port 8000
 
 # 访问 API 文档
 # http://localhost:8000/docs
+
+超级管理员权限 MJXJadmin/Admin123 
 ```
 
 ### 前端（开发模式）

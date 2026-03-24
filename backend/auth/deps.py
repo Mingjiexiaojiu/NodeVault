@@ -77,3 +77,15 @@ async def get_current_user(
         return api_key.owner
 
     raise credentials_exception
+
+
+async def get_superadmin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Dependency that requires the current user to be a superadmin (role == 0)."""
+    if current_user.role != 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superadmin required",
+        )
+    return current_user

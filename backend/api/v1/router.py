@@ -1,5 +1,7 @@
 ﻿from fastapi import APIRouter
 
+from backend.api.v1.admin import router as admin_router
+from backend.api.v1.admin import announcement_router
 from backend.api.v1.agent import router as agent_router
 from backend.api.v1.ai_configs import router as ai_configs_router
 from backend.api.v1.auth import router as auth_router
@@ -20,6 +22,8 @@ from backend.api.v1.tags import router as tags_router
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(auth_router)
+api_router.include_router(admin_router)
+api_router.include_router(announcement_router)
 api_router.include_router(ai_configs_router)
 api_router.include_router(categories_router)
 api_router.include_router(credentials_router)

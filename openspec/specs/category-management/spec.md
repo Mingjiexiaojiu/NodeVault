@@ -61,3 +61,72 @@
 #### Scenario: 迁移后系统 Skill 存在
 - **WHEN** 迁移执行完成后
 - **THEN** 系统 SHALL 存在 8 个 is_system=true 的 Skill，name 分别为 data_cleaning-collection、analysis-collection 等
+
+
+---
+
+## Changes from superadmin-console
+
+## MODIFIED Requirements
+
+### Requirement: Category creation restricted to superadmin
+系统分类（categories）的创建、更新和删除 SHALL 仅允�?role=0 的超管执行；普通用�?SHALL 不能创建或删除分类（只读）�?
+
+#### Scenario: Superadmin creates a category
+- **WHEN** role=0 的用户调�?`POST /api/v1/categories`
+- **THEN** 系统成功创建分类，返�?201
+
+#### Scenario: Regular user attempts to create category
+- **WHEN** role=2 的用户调�?`POST /api/v1/categories`
+- **THEN** 系统返回 HTTP 403，提�?"Superadmin required"
+
+#### Scenario: Superadmin deletes a category
+- **WHEN** role=0 的用户调�?`DELETE /api/v1/categories/{id}`
+- **THEN** 系统删除该分类（若分类下有节点，返回 409 提示需先迁移节点）
+
+
+
+---
+
+## Changes from superadmin-console
+
+## MODIFIED Requirements
+
+### Requirement: Category creation restricted to superadmin
+系统分类（categories）的创建、更新和删除 SHALL 仅允�?role=0 的超管执行；普通用�?SHALL 不能创建或删除分类（只读）�?
+
+#### Scenario: Superadmin creates a category
+- **WHEN** role=0 的用户调�?`POST /api/v1/categories`
+- **THEN** 系统成功创建分类，返�?201
+
+#### Scenario: Regular user attempts to create category
+- **WHEN** role=2 的用户调�?`POST /api/v1/categories`
+- **THEN** 系统返回 HTTP 403，提�?"Superadmin required"
+
+#### Scenario: Superadmin deletes a category
+- **WHEN** role=0 的用户调�?`DELETE /api/v1/categories/{id}`
+- **THEN** 系统删除该分类（若分类下有节点，返回 409 提示需先迁移节点）
+
+
+
+---
+
+## Changes from superadmin-console
+
+## MODIFIED Requirements
+
+### Requirement: Category creation restricted to superadmin
+系统分类（categories）的创建、更新和删除 SHALL 仅允�?role=0 的超管执行；普通用�?SHALL 不能创建或删除分类（只读）�?
+
+#### Scenario: Superadmin creates a category
+- **WHEN** role=0 的用户调�?`POST /api/v1/categories`
+- **THEN** 系统成功创建分类，返�?201
+
+#### Scenario: Regular user attempts to create category
+- **WHEN** role=2 的用户调�?`POST /api/v1/categories`
+- **THEN** 系统返回 HTTP 403，提�?"Superadmin required"
+
+#### Scenario: Superadmin deletes a category
+- **WHEN** role=0 的用户调�?`DELETE /api/v1/categories/{id}`
+- **THEN** 系统删除该分类（若分类下有节点，返回 409 提示需先迁移节点）
+

@@ -693,3 +693,10 @@ ALTER TABLE "public"."skills" ADD CONSTRAINT "skills_owner_id_fkey" FOREIGN KEY 
 -- Foreign Keys structure for table user_ai_configs
 -- ----------------------------
 ALTER TABLE "public"."user_ai_configs" ADD CONSTRAINT "user_ai_configs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Default super admin user
+-- ----------------------------
+INSERT INTO "public"."users" ("id", "email", "username", "hashed_password", "is_active", "created_at", "updated_at", "role", "display_name", "avatar_url", "bio", "phone", "department", "title")
+VALUES ('1a6bde58-0f9e-4afb-b782-72d7b1e32a11', 'admin@admin.com', 'MJXJadmin', '$2b$12$szN2T26xSgdhpG/vBgHK8eoIpL4pgh6vDSFEBniYcfFpUfcIRqog6', true, '2026-03-24 01:48:45.300559', '2026-03-24 01:48:45.300559', 0, '超级管理员', NULL, NULL, NULL, NULL, NULL)
+ON CONFLICT ("id") DO NOTHING;

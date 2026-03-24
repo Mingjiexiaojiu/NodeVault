@@ -136,6 +136,57 @@ const router = createRouter({
       component: () => import('@/views/AiConfigView.vue'),
       meta: { layout: 'app' },
     },
+    // Admin routes
+    {
+      path: '/admin',
+      redirect: '/admin/analytics',
+      meta: { requireSuperAdmin: true },
+      component: () => import('@/layouts/AdminLayout.vue'),
+      children: [
+        {
+          path: 'users',
+          name: 'admin-users',
+          component: () => import('@/views/admin/UserManageView.vue'),
+          meta: { requireSuperAdmin: true },
+        },
+        {
+          path: 'nodes',
+          name: 'admin-nodes',
+          component: () => import('@/views/admin/GlobalNodesView.vue'),
+          meta: { requireSuperAdmin: true },
+        },
+        {
+          path: 'categories',
+          name: 'admin-categories',
+          component: () => import('@/views/CategoryManageView.vue'),
+          meta: { requireSuperAdmin: true },
+        },
+        {
+          path: 'analytics',
+          name: 'admin-analytics',
+          component: () => import('@/views/admin/AdminAnalyticsView.vue'),
+          meta: { requireSuperAdmin: true },
+        },
+        {
+          path: 'namespaces',
+          name: 'admin-namespaces',
+          component: () => import('@/views/admin/NamespaceManageView.vue'),
+          meta: { requireSuperAdmin: true },
+        },
+        {
+          path: 'auth',
+          name: 'admin-auth',
+          component: () => import('@/views/admin/AuthManageView.vue'),
+          meta: { requireSuperAdmin: true },
+        },
+        {
+          path: 'settings',
+          name: 'admin-settings',
+          component: () => import('@/views/admin/AdminSettingsView.vue'),
+          meta: { requireSuperAdmin: true },
+        },
+      ],
+    },
   ],
 })
 
@@ -151,11 +202,17 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.public && auth.token) {
-    return { name: 'dashboard' }
+    // 超管登录后跳管理控制台，普通用户跳 dashboard
+    return auth.user?.role === 0 ? { name: 'admin-analytics' } : { name: 'dashboard' }
   }
 
-  // Role guard: categories page requires role <= 1
-  if (to.name === 'categories' && auth.user && auth.user.role > 1) {
+  // 超管访问非 admin 的受保护页面，重定向到管理控制台
+  if (auth.token && auth.user?.role === 0 && !to.meta.requireSuperAdmin) {
+    return { name: 'admin-analytics' }
+  }
+
+  // Superadmin guard: /admin/* routes require role === 0
+  if (to.meta.requireSuperAdmin && auth.user?.role !== 0) {
     return { name: 'dashboard' }
   }
 })

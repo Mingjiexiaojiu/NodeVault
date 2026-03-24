@@ -155,7 +155,12 @@ async function handleLogin() {
   try {
     await auth.login({ identifier: form.identifier, password: form.password })
     const redirect = route.query.redirect as string | undefined
-    router.push(redirect ?? '/')
+    // 超管直接进管理控制台（除非已有明确的 /admin/* 跳转目标）
+    if (auth.isSuperAdmin) {
+      router.push(redirect?.startsWith('/admin') ? redirect : '/admin/analytics')
+    } else {
+      router.push(redirect ?? '/')
+    }
   } catch (e: unknown) {
     const err = e as { response?: { status?: number } }
     if (err.response?.status === 401) {

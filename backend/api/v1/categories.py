@@ -1,4 +1,4 @@
-"""Category CRUD endpoints — role ≤ 1 (超管/主管) can create/update/delete."""
+"""Category CRUD endpoints — role == 0 (超管) can create/update/delete."""
 
 import uuid
 
@@ -6,22 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth.deps import get_current_user
+from backend.auth.deps import get_current_user, get_superadmin_user
 from backend.database.session import get_db
 from backend.models.category import Category
 from backend.models.user import User
 from backend.schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
 
 router = APIRouter(prefix="/categories", tags=["categories"])
-
-
-def _require_manager(user: User) -> None:
-    """Raise 403 if the user is not a manager (role > 1)."""
-    if user.role > 1:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="仅主管及以上角色可管理分类",
-        )
 
 
 @router.get("", response_model=list[CategoryRead])
@@ -52,10 +43,8 @@ async def get_category(
 async def create_category(
     payload: CategoryCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_superadmin_user),
 ) -> CategoryRead:
-    _require_manager(user)
-
     # Check name uniqueness
     existing = await db.execute(select(Category).where(Category.name == payload.name))
     if existing.scalar_one_or_none():
@@ -80,10 +69,8 @@ async def update_category(
     category_id: uuid.UUID,
     payload: CategoryUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_superadmin_user),
 ) -> CategoryRead:
-    _require_manager(user)
-
     result = await db.execute(select(Category).where(Category.id == category_id))
     cat = result.scalar_one_or_none()
     if cat is None:
@@ -105,10 +92,8 @@ async def update_category(
 async def delete_category(
     category_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_superadmin_user),
 ) -> None:
-    _require_manager(user)
-
     result = await db.execute(select(Category).where(Category.id == category_id))
     cat = result.scalar_one_or_none()
     if cat is None:

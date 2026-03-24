@@ -7,6 +7,7 @@ from backend.models.namespace import Namespace, NamespaceMember
 from backend.models.node import Node, NodeInvocationLog, NodeTag, NodeVersion
 from backend.models.skill import Skill, SkillVersion
 from backend.models.skill_node import SkillNode
+from backend.models.system_setting import SystemSetting
 from backend.models.user import User
 
 __all__ = [
@@ -26,4 +27,5 @@ __all__ = [
     "Skill",
     "SkillVersion",
     "SkillNode",
+    "SystemSetting",
 ]

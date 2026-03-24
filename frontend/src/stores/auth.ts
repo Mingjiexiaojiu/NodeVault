@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { login as apiLogin, getMe } from '@/api/auth'
 import type { UserInfo, LoginPayload } from '@/api/auth'
 
@@ -55,5 +55,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { token, user, sessionExpired, login, logout, fetchMe, initFromStorage, notifySessionExpired, dismissSessionExpired }
+  const isSuperAdmin = computed(() => user.value?.role === 0)
+
+  return { token, user, sessionExpired, isSuperAdmin, login, logout, fetchMe, initFromStorage, notifySessionExpired, dismissSessionExpired }
 })
