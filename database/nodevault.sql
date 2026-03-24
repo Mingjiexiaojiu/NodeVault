@@ -12,14 +12,14 @@
  Target Server Version : 170007 (170007)
  File Encoding         : 65001
 
- Date: 19/03/2026 18:48:54
+ Date: 23/03/2026 18:09:03
 */
 
 
 -- ----------------------------
 -- Sequence structure for node_tags_id_seq
 -- ----------------------------
-DROP SEQUENCE IF EXISTS "public"."node_tags_id_seq";
+DROP SEQUENCE IF EXISTS "public"."node_tags_id_seq" CASCADE;
 CREATE SEQUENCE "public"."node_tags_id_seq" 
 INCREMENT 1
 MINVALUE  1
@@ -30,7 +30,7 @@ CACHE 1;
 -- ----------------------------
 -- Table structure for alembic_version
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."alembic_version";
+DROP TABLE IF EXISTS "public"."alembic_version" CASCADE;
 CREATE TABLE "public"."alembic_version" (
   "version_num" varchar(32) COLLATE "pg_catalog"."default" NOT NULL
 )
@@ -39,7 +39,7 @@ CREATE TABLE "public"."alembic_version" (
 -- ----------------------------
 -- Table structure for api_keys
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."api_keys";
+DROP TABLE IF EXISTS "public"."api_keys" CASCADE;
 CREATE TABLE "public"."api_keys" (
   "id" uuid NOT NULL,
   "name" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
@@ -53,9 +53,25 @@ CREATE TABLE "public"."api_keys" (
 ;
 
 -- ----------------------------
+-- Table structure for categories
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."categories" CASCADE;
+CREATE TABLE "public"."categories" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "name" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
+  "display_name" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
+  "icon" varchar(64) COLLATE "pg_catalog"."default",
+  "sort_order" int4 NOT NULL DEFAULT 0,
+  "is_default" bool NOT NULL DEFAULT false,
+  "created_by" uuid,
+  "created_at" timestamp(6) NOT NULL DEFAULT now()
+)
+;
+
+-- ----------------------------
 -- Table structure for credential_token_cache
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."credential_token_cache";
+DROP TABLE IF EXISTS "public"."credential_token_cache" CASCADE;
 CREATE TABLE "public"."credential_token_cache" (
   "id" uuid NOT NULL,
   "credential_id" uuid NOT NULL,
@@ -68,11 +84,11 @@ CREATE TABLE "public"."credential_token_cache" (
 -- ----------------------------
 -- Table structure for discovery_sessions
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."discovery_sessions";
+DROP TABLE IF EXISTS "public"."discovery_sessions" CASCADE;
 CREATE TABLE "public"."discovery_sessions" (
   "id" uuid NOT NULL,
   "user_id" uuid NOT NULL,
-  "base_url" varchar(2048) COLLATE "pg_catalog"."default" NOT NULL DEFAULT ''::character varying,
+  "base_url" varchar(2048) COLLATE "pg_catalog"."default",
   "source" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'probe'::character varying,
   "status" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'probing'::character varying,
   "spec_url" varchar(2048) COLLATE "pg_catalog"."default",
@@ -86,7 +102,7 @@ CREATE TABLE "public"."discovery_sessions" (
 -- ----------------------------
 -- Table structure for namespace_members
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."namespace_members";
+DROP TABLE IF EXISTS "public"."namespace_members" CASCADE;
 CREATE TABLE "public"."namespace_members" (
   "id" uuid NOT NULL DEFAULT gen_random_uuid(),
   "namespace_id" uuid NOT NULL,
@@ -99,7 +115,7 @@ CREATE TABLE "public"."namespace_members" (
 -- ----------------------------
 -- Table structure for namespaces
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."namespaces";
+DROP TABLE IF EXISTS "public"."namespaces" CASCADE;
 CREATE TABLE "public"."namespaces" (
   "id" uuid NOT NULL,
   "slug" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
@@ -113,7 +129,7 @@ CREATE TABLE "public"."namespaces" (
 -- ----------------------------
 -- Table structure for node_invocation_logs
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."node_invocation_logs";
+DROP TABLE IF EXISTS "public"."node_invocation_logs" CASCADE;
 CREATE TABLE "public"."node_invocation_logs" (
   "id" uuid NOT NULL,
   "node_id" uuid NOT NULL,
@@ -131,7 +147,7 @@ CREATE TABLE "public"."node_invocation_logs" (
 -- ----------------------------
 -- Table structure for node_tags
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."node_tags";
+DROP TABLE IF EXISTS "public"."node_tags" CASCADE;
 CREATE TABLE "public"."node_tags" (
   "id" int4 NOT NULL DEFAULT nextval('node_tags_id_seq'::regclass),
   "node_id" uuid NOT NULL,
@@ -142,7 +158,7 @@ CREATE TABLE "public"."node_tags" (
 -- ----------------------------
 -- Table structure for node_versions
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."node_versions";
+DROP TABLE IF EXISTS "public"."node_versions" CASCADE;
 CREATE TABLE "public"."node_versions" (
   "id" uuid NOT NULL,
   "node_id" uuid NOT NULL,
@@ -161,7 +177,7 @@ CREATE TABLE "public"."node_versions" (
 -- ----------------------------
 -- Table structure for nodes
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."nodes";
+DROP TABLE IF EXISTS "public"."nodes" CASCADE;
 CREATE TABLE "public"."nodes" (
   "id" uuid NOT NULL,
   "name" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
@@ -169,8 +185,6 @@ CREATE TABLE "public"."nodes" (
   "owner_id" uuid NOT NULL,
   "display_name" varchar(256) COLLATE "pg_catalog"."default",
   "description" text COLLATE "pg_catalog"."default",
-  "type" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
-  "category" varchar(128) COLLATE "pg_catalog"."default",
   "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
   "visibility" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
   "created_at" timestamp(6) NOT NULL,
@@ -178,16 +192,15 @@ CREATE TABLE "public"."nodes" (
   "invocation_count" int4 NOT NULL,
   "source_credential_id" uuid,
   "source_path" varchar(512) COLLATE "pg_catalog"."default",
-  "skill_id" uuid,
-  "usage_hint" varchar(500) COLLATE "pg_catalog"."default",
-  "discovery_session_id" uuid
+  "discovery_session_id" uuid,
+  "category_id" uuid NOT NULL
 )
 ;
 
 -- ----------------------------
 -- Table structure for service_credentials
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."service_credentials";
+DROP TABLE IF EXISTS "public"."service_credentials" CASCADE;
 CREATE TABLE "public"."service_credentials" (
   "id" uuid NOT NULL,
   "owner_id" uuid NOT NULL,
@@ -212,9 +225,23 @@ CREATE TABLE "public"."service_credentials" (
 ;
 
 -- ----------------------------
+-- Table structure for skill_nodes
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."skill_nodes" CASCADE;
+CREATE TABLE "public"."skill_nodes" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "skill_id" uuid NOT NULL,
+  "node_id" uuid NOT NULL,
+  "usage_hint" varchar(500) COLLATE "pg_catalog"."default",
+  "sort_order" int4 NOT NULL DEFAULT 0,
+  "created_at" timestamp(6) NOT NULL DEFAULT now()
+)
+;
+
+-- ----------------------------
 -- Table structure for skill_versions
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."skill_versions";
+DROP TABLE IF EXISTS "public"."skill_versions" CASCADE;
 CREATE TABLE "public"."skill_versions" (
   "id" uuid NOT NULL,
   "skill_id" uuid NOT NULL,
@@ -230,7 +257,7 @@ CREATE TABLE "public"."skill_versions" (
 -- ----------------------------
 -- Table structure for skills
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."skills";
+DROP TABLE IF EXISTS "public"."skills" CASCADE;
 CREATE TABLE "public"."skills" (
   "id" uuid NOT NULL,
   "name" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
@@ -241,21 +268,23 @@ CREATE TABLE "public"."skills" (
   "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'active'::character varying,
   "is_stale" bool NOT NULL DEFAULT false,
   "created_at" timestamp(6) NOT NULL DEFAULT now(),
-  "updated_at" timestamp(6) NOT NULL DEFAULT now()
+  "updated_at" timestamp(6) NOT NULL DEFAULT now(),
+  "is_system" bool NOT NULL DEFAULT false
 )
 ;
 
 -- ----------------------------
 -- Table structure for user_ai_configs
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."user_ai_configs";
+DROP TABLE IF EXISTS "public"."user_ai_configs" CASCADE;
 CREATE TABLE "public"."user_ai_configs" (
   "id" uuid NOT NULL,
   "user_id" uuid NOT NULL,
   "name" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
   "provider" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'openai'::character varying,
   "model" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
-  "api_key" text COLLATE "pg_catalog"."default" NOT NULL,
+  "api_key_encrypted" bytea NOT NULL,
+  "api_key_nonce" bytea NOT NULL,
   "base_url" varchar(512) COLLATE "pg_catalog"."default",
   "is_default" bool NOT NULL DEFAULT false,
   "created_at" timestamp(6) NOT NULL,
@@ -266,7 +295,7 @@ CREATE TABLE "public"."user_ai_configs" (
 -- ----------------------------
 -- Table structure for users
 -- ----------------------------
-DROP TABLE IF EXISTS "public"."users";
+DROP TABLE IF EXISTS "public"."users" CASCADE;
 CREATE TABLE "public"."users" (
   "id" uuid NOT NULL,
   "email" varchar(256) COLLATE "pg_catalog"."default" NOT NULL,
@@ -284,22 +313,6 @@ CREATE TABLE "public"."users" (
   "title" varchar(128) COLLATE "pg_catalog"."default"
 )
 ;
-
--- ----------------------------
--- View structure for gs_package
--- ----------------------------
-DROP VIEW IF EXISTS "public"."gs_package";
-CREATE VIEW "public"."gs_package" AS  SELECT NULL::oid AS oid,
-    NULL::oid AS pkgoid,
-    NULL::name AS pkgname,
-    NULL::oid AS pkgnamespace,
-    NULL::oid AS pkgowner,
-    NULL::text AS pkgspecsrc,
-    NULL::text AS pkgbodydeclsrc,
-    NULL::text AS pkgbodyinitsrc,
-    NULL::aclitem[] AS pkgacl,
-    NULL::boolean AS pkgsecdef
-  WHERE false;
 
 -- ----------------------------
 -- Alter sequences owned by
@@ -332,6 +345,18 @@ ALTER TABLE "public"."api_keys" ADD CONSTRAINT "api_keys_key_hash_key" UNIQUE ("
 -- Primary Key structure for table api_keys
 -- ----------------------------
 ALTER TABLE "public"."api_keys" ADD CONSTRAINT "api_keys_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table categories
+-- ----------------------------
+CREATE UNIQUE INDEX "ix_categories_name" ON "public"."categories" USING btree (
+  "name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table categories
+-- ----------------------------
+ALTER TABLE "public"."categories" ADD CONSTRAINT "categories_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
 -- Indexes structure for table credential_token_cache
@@ -429,6 +454,13 @@ ALTER TABLE "public"."node_tags" ADD CONSTRAINT "uq_node_tag" UNIQUE ("node_id",
 ALTER TABLE "public"."node_tags" ADD CONSTRAINT "node_tags_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Indexes structure for table node_versions
+-- ----------------------------
+CREATE UNIQUE INDEX "uq_node_default_version" ON "public"."node_versions" USING btree (
+  "node_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+) WHERE is_default = true;
+
+-- ----------------------------
 -- Uniques structure for table node_versions
 -- ----------------------------
 ALTER TABLE "public"."node_versions" ADD CONSTRAINT "uq_node_version" UNIQUE ("node_id", "version");
@@ -441,8 +473,8 @@ ALTER TABLE "public"."node_versions" ADD CONSTRAINT "node_versions_pkey" PRIMARY
 -- ----------------------------
 -- Indexes structure for table nodes
 -- ----------------------------
-CREATE INDEX "ix_nodes_category" ON "public"."nodes" USING btree (
-  "category" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+CREATE INDEX "ix_nodes_category_id" ON "public"."nodes" USING btree (
+  "category_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
 );
 CREATE INDEX "ix_nodes_discovery_session_id" ON "public"."nodes" USING btree (
   "discovery_session_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
@@ -450,17 +482,11 @@ CREATE INDEX "ix_nodes_discovery_session_id" ON "public"."nodes" USING btree (
 CREATE INDEX "ix_nodes_name" ON "public"."nodes" USING btree (
   "name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
 );
-CREATE INDEX "ix_nodes_skill_id" ON "public"."nodes" USING btree (
-  "skill_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
-);
 CREATE INDEX "ix_nodes_source_credential_id" ON "public"."nodes" USING btree (
   "source_credential_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
 );
 CREATE INDEX "ix_nodes_status" ON "public"."nodes" USING btree (
   "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
-);
-CREATE INDEX "ix_nodes_type" ON "public"."nodes" USING btree (
-  "type" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
 );
 
 -- ----------------------------
@@ -486,11 +512,38 @@ CREATE INDEX "ix_service_credentials_owner_id" ON "public"."service_credentials"
 ALTER TABLE "public"."service_credentials" ADD CONSTRAINT "service_credentials_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Indexes structure for table skill_nodes
+-- ----------------------------
+CREATE INDEX "ix_skill_nodes_node_id" ON "public"."skill_nodes" USING btree (
+  "node_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+);
+CREATE INDEX "ix_skill_nodes_skill_id" ON "public"."skill_nodes" USING btree (
+  "skill_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Uniques structure for table skill_nodes
+-- ----------------------------
+ALTER TABLE "public"."skill_nodes" ADD CONSTRAINT "uq_skill_node" UNIQUE ("skill_id", "node_id");
+
+-- ----------------------------
+-- Primary Key structure for table skill_nodes
+-- ----------------------------
+ALTER TABLE "public"."skill_nodes" ADD CONSTRAINT "skill_nodes_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
 -- Indexes structure for table skill_versions
 -- ----------------------------
 CREATE INDEX "ix_skill_versions_skill_id" ON "public"."skill_versions" USING btree (
   "skill_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
 );
+
+-- ----------------------------
+-- Indexes structure for table skill_versions (partial unique)
+-- ----------------------------
+CREATE UNIQUE INDEX "uq_skill_default_version" ON "public"."skill_versions" USING btree (
+  "skill_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+) WHERE is_default = true;
 
 -- ----------------------------
 -- Uniques structure for table skill_versions
@@ -563,6 +616,11 @@ ALTER TABLE "public"."users" ADD CONSTRAINT "users_pkey" PRIMARY KEY ("id");
 ALTER TABLE "public"."api_keys" ADD CONSTRAINT "api_keys_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------
+-- Foreign Keys structure for table categories
+-- ----------------------------
+ALTER TABLE "public"."categories" ADD CONSTRAINT "categories_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "public"."users" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
+
+-- ----------------------------
 -- Foreign Keys structure for table credential_token_cache
 -- ----------------------------
 ALTER TABLE "public"."credential_token_cache" ADD CONSTRAINT "credential_token_cache_credential_id_fkey" FOREIGN KEY ("credential_id") REFERENCES "public"."service_credentials" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
@@ -603,16 +661,22 @@ ALTER TABLE "public"."node_versions" ADD CONSTRAINT "node_versions_node_id_fkey"
 -- ----------------------------
 -- Foreign Keys structure for table nodes
 -- ----------------------------
+ALTER TABLE "public"."nodes" ADD CONSTRAINT "fk_nodes_category_id" FOREIGN KEY ("category_id") REFERENCES "public"."categories" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_discovery_session_id_fkey" FOREIGN KEY ("discovery_session_id") REFERENCES "public"."discovery_sessions" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_namespace_id_fkey" FOREIGN KEY ("namespace_id") REFERENCES "public"."namespaces" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
-ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_skill_id_fkey" FOREIGN KEY ("skill_id") REFERENCES "public"."skills" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_source_credential_id_fkey" FOREIGN KEY ("source_credential_id") REFERENCES "public"."service_credentials" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- ----------------------------
 -- Foreign Keys structure for table service_credentials
 -- ----------------------------
 ALTER TABLE "public"."service_credentials" ADD CONSTRAINT "service_credentials_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Foreign Keys structure for table skill_nodes
+-- ----------------------------
+ALTER TABLE "public"."skill_nodes" ADD CONSTRAINT "skill_nodes_node_id_fkey" FOREIGN KEY ("node_id") REFERENCES "public"."nodes" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."skill_nodes" ADD CONSTRAINT "skill_nodes_skill_id_fkey" FOREIGN KEY ("skill_id") REFERENCES "public"."skills" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------
 -- Foreign Keys structure for table skill_versions

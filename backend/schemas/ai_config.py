@@ -44,8 +44,8 @@ class AIConfigResponse(BaseModel):
     name: str
     provider: str
     model: str
-    # API Key 脱敏：只返回前8位 + ***
-    api_key_preview: str
+    # API Key 脱敏：前4位 + **** + 后4位，不返回明文
+    api_key_masked: str
     base_url: str | None
     is_default: bool
     created_at: datetime

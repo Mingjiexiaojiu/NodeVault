@@ -1,13 +1,14 @@
 import http from './http'
 
 export interface LoginPayload {
-  email: string
+  identifier: string  // 邮箱或用户名
   password: string
 }
 
 export interface RegisterPayload {
   email: string
   username: string
+  display_name: string
   password: string
 }
 

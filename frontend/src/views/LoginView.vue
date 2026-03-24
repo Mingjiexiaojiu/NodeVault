@@ -32,7 +32,7 @@
 
         <form class="space-y-5" @submit.prevent="handleLogin">
           <div class="space-y-1">
-            <label class="text-sm font-medium text-gray-700">邮箱 <span class="text-red-400">*</span></label>
+            <label class="text-sm font-medium text-gray-700">用户名 / 邮箱 <span class="text-red-400">*</span></label>
             <div class="relative">
               <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
                 <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,15 +41,15 @@
                 </svg>
               </div>
               <input
-                v-model="form.email"
-                type="email"
-                autocomplete="email"
-                placeholder="your@email.com"
+                v-model="form.identifier"
+                type="text"
+                autocomplete="username"
+                placeholder="用户名或邮箱地址"
                 :class="['w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2',
-                  errors.email ? 'border-red-300 focus:ring-red-400' : 'border-gray-200 focus:ring-indigo-400 focus:border-indigo-400']"
+                  errors.identifier ? 'border-red-300 focus:ring-red-400' : 'border-gray-200 focus:ring-indigo-400 focus:border-indigo-400']"
               />
             </div>
-            <p v-if="errors.email" class="text-xs text-red-500">{{ errors.email }}</p>
+            <p v-if="errors.identifier" class="text-xs text-red-500">{{ errors.identifier }}</p>
           </div>
 
           <div class="space-y-1">
@@ -135,8 +135,8 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 
-const form = reactive({ email: '', password: '' })
-const errors = reactive({ email: '', password: '' })
+const form = reactive({ identifier: '', password: '' })
+const errors = reactive({ identifier: '', password: '' })
 const errorMsg = ref('')
 const loading = ref(false)
 const showPwd = ref(false)
@@ -144,22 +144,22 @@ const showPwd = ref(false)
 const successMsg = computed(() => route.query.registered === '1' ? '注册成功，请登录' : '')
 
 async function handleLogin() {
-  errors.email = ''
+  errors.identifier = ''
   errors.password = ''
   errorMsg.value = ''
 
-  if (!form.email) { errors.email = '请输入邮箱'; return }
+  if (!form.identifier) { errors.identifier = '请输入用户名或邮箱'; return }
   if (!form.password) { errors.password = '请输入密码'; return }
 
   loading.value = true
   try {
-    await auth.login({ email: form.email, password: form.password })
+    await auth.login({ identifier: form.identifier, password: form.password })
     const redirect = route.query.redirect as string | undefined
     router.push(redirect ?? '/')
   } catch (e: unknown) {
     const err = e as { response?: { status?: number } }
     if (err.response?.status === 401) {
-      errorMsg.value = '邮箱或密码错误'
+      errorMsg.value = '用户名/邮箱或密码错误'
     } else {
       errorMsg.value = '登录失败，请稍后重试'
     }

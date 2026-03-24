@@ -29,6 +29,23 @@
         <h2 class="text-lg font-semibold text-gray-800 mb-6">创建账号</h2>
 
         <form class="space-y-4" @submit.prevent="handleRegister">
+          <!-- 昵称 -->
+          <div class="space-y-1">
+            <label class="text-sm font-medium text-gray-700">昵称 <span class="text-red-400">*</span></label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <input v-model="form.display_name" type="text" autocomplete="nickname" placeholder="你的昵称，展示给其他人"
+                :class="['w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2',
+                  errors.display_name ? 'border-red-300 focus:ring-red-400' : 'border-gray-200 focus:ring-indigo-400 focus:border-indigo-400']" />
+            </div>
+            <p v-if="errors.display_name" class="text-xs text-red-500">{{ errors.display_name }}</p>
+          </div>
+
           <!-- 邮箱 -->
           <div class="space-y-1">
             <label class="text-sm font-medium text-gray-700">邮箱 <span class="text-red-400">*</span></label>
@@ -56,10 +73,11 @@
                     d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
               </div>
-              <input v-model="form.username" type="text" autocomplete="username" placeholder="用户名（支持中文、字母、数字）"
+              <input v-model="form.username" type="text" autocomplete="username" placeholder="仅限英文字母、数字、下划线，至少 8 位"
                 :class="['w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm transition focus:outline-none focus:ring-2',
                   errors.username ? 'border-red-300 focus:ring-red-400' : 'border-gray-200 focus:ring-indigo-400 focus:border-indigo-400']" />
             </div>
+            <p class="text-xs text-gray-400">不能包含中文，至少 8 位，可用字母、数字、下划线、连字符</p>
             <p v-if="errors.username" class="text-xs text-red-500">{{ errors.username }}</p>
           </div>
 
@@ -132,8 +150,8 @@ import { useAuthStore } from '@/stores/auth'
 const router = useRouter()
 const auth = useAuthStore()
 
-const form = reactive({ email: '', username: '', password: '' })
-const errors = reactive({ email: '', username: '', password: '' })
+const form = reactive({ email: '', username: '', display_name: '', password: '' })
+const errors = reactive({ email: '', username: '', display_name: '', password: '' })
 const errorMsg = ref('')
 const loading = ref(false)
 const showPwd = ref(false)
@@ -146,25 +164,35 @@ function validatePassword(pwd: string): string {
   return ''
 }
 
+function validateUsername(name: string): string {
+  if (name.length < 8) return '用户名至少 8 位'
+  if (/[\u4e00-\u9fa5]/.test(name)) return '用户名不能包含中文'
+  if (!/^[a-zA-Z0-9_][a-zA-Z0-9_-]{7,63}$/.test(name)) return '用户名只能包含字母、数字、下划线、连字符'
+  return ''
+}
+
 async function handleRegister() {
   errors.email = ''
   errors.username = ''
+  errors.display_name = ''
   errors.password = ''
   errorMsg.value = ''
 
+  if (!form.display_name.trim()) { errors.display_name = '请输入昵称'; return }
   if (!form.email) { errors.email = '请输入邮箱'; return }
   if (!form.username) { errors.username = '请输入用户名'; return }
+  const unameErr = validateUsername(form.username)
+  if (unameErr) { errors.username = unameErr; return }
   const pwdErr = validatePassword(form.password)
   if (pwdErr) { errors.password = pwdErr; return }
 
   loading.value = true
   try {
-    await register({ email: form.email, username: form.username, password: form.password })
+    await register({ email: form.email, username: form.username, display_name: form.display_name.trim(), password: form.password })
     try {
-      await auth.login({ email: form.email, password: form.password })
+      await auth.login({ identifier: form.email, password: form.password })
       router.push('/')
     } catch {
-      // 注册成功但自动登录失败，跳转到登录页
       router.push({ path: '/login', query: { registered: '1' } })
     }
     return
@@ -174,10 +202,9 @@ async function handleRegister() {
     if (err.response?.status === 409) {
       errorMsg.value = '该邮箱已注册'
     } else if (err.response?.status === 422 && apiError?.details?.fields) {
-      // 将字段级错误显示在对应输入框下方
       const fields = apiError.details.fields
       let handled = false
-      for (const field of ['email', 'username', 'password'] as (keyof typeof errors)[]) {
+      for (const field of ['email', 'username', 'display_name', 'password'] as (keyof typeof errors)[]) {
         if (fields[field]) {
           errors[field] = fields[field]
           handled = true

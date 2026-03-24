@@ -34,6 +34,7 @@ async def register(payload: UserRegister, db: AsyncSession = Depends(get_db)) ->
     user = User(
         email=payload.email,
         username=payload.username,
+        display_name=payload.display_name,
         hashed_password=get_password_hash(payload.password),
     )
     db.add(user)
@@ -56,7 +57,11 @@ async def register(payload: UserRegister, db: AsyncSession = Depends(get_db)) ->
 
 @router.post("/login", response_model=ApiResponse)
 async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)) -> ApiResponse:
-    result = await db.execute(select(User).where(User.email == payload.email))
+    identifier = payload.identifier
+    if "@" in identifier:
+        result = await db.execute(select(User).where(User.email == identifier))
+    else:
+        result = await db.execute(select(User).where(User.username == identifier))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(payload.password, user.hashed_password):

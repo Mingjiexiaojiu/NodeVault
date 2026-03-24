@@ -34,10 +34,12 @@ def _make_node_payload(unique: str, category_id: str = "") -> dict:
 async def test_agent_tools_returns_list(auth_client):
     client, headers, _ = auth_client
     unique = uuid.uuid4().hex[:8]
-    create = await client.post("/api/v1/nodes", json=_make_node_payload(unique), headers=headers)
+    cat_resp = await client.get("/api/v1/categories", headers=headers)
+    category_id = cat_resp.json()[0]["id"]
+    create = await client.post("/api/v1/nodes", json=_make_node_payload(unique, category_id), headers=headers)
     assert create.status_code == 201
     await client.patch(
-        f"/api/v1/nodes/{create.json()['id']}",
+        f"/api/v1/nodes/{create.json()['data']['id']}",
         json={"status": "active"},
         headers=headers,
     )
@@ -98,9 +100,11 @@ async def test_execute_tool_success(auth_client):
     client, headers, _ = auth_client
     unique = uuid.uuid4().hex[:8]
     node_name = f"agent_node_{unique}"
-    create = await client.post("/api/v1/nodes", json=_make_node_payload(unique), headers=headers)
+    cat_resp = await client.get("/api/v1/categories", headers=headers)
+    category_id = cat_resp.json()[0]["id"]
+    create = await client.post("/api/v1/nodes", json=_make_node_payload(unique, category_id), headers=headers)
     assert create.status_code == 201
-    node_id = create.json()["id"]
+    node_id = create.json()["data"]["id"]
     await client.patch(f"/api/v1/nodes/{node_id}", json={"status": "active"}, headers=headers)
 
     tool_call = {

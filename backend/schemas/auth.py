@@ -9,7 +9,8 @@ PASSWORD_PATTERN = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$")
 
 class UserRegister(BaseModel):
     email: EmailStr
-    username: str = Field(..., min_length=2, max_length=64, pattern=r"^[\u4e00-\u9fa5a-zA-Z][\u4e00-\u9fa5a-zA-Z0-9_]{1,63}$")
+    username: str = Field(..., min_length=8, max_length=64, pattern=r"^[a-zA-Z0-9_][a-zA-Z0-9_-]{7,63}$")
+    display_name: str = Field(..., min_length=1, max_length=128)
     password: str
 
     @field_validator("password")
@@ -23,7 +24,7 @@ class UserRegister(BaseModel):
 
 
 class UserLogin(BaseModel):
-    email: EmailStr
+    identifier: str  # 邮箱或用户名
     password: str
 
 

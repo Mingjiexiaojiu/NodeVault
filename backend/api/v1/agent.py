@@ -126,7 +126,6 @@ async def discover_capabilities(
 @router.get("/tools", response_model=ApiResponse)
 async def get_all_tools(
     tags: list[str] = Query(default=[]),
-    type: str | None = Query(default=None),
     namespace: str | None = Query(default=None),
     limit: int = Query(100, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
@@ -137,7 +136,6 @@ async def get_all_tools(
     nodes = await registry.list_nodes(
         owner=current_user,
         status=NodeStatus.ACTIVE.value,
-        type=type,
         page_size=limit,
     )
 

@@ -2,7 +2,7 @@
 from pydantic import ValidationError
 
 from backend.schemas.node_schema import NodeSchemaBase, RuntimeConfig
-from backend.schemas.enums import NodeType, RuntimeType, HttpMethod
+from backend.schemas.enums import RuntimeType, HttpMethod
 
 
 def _make_node(**overrides) -> dict:
@@ -10,7 +10,7 @@ def _make_node(**overrides) -> dict:
     base = {
         "name": "detect_fund_pool",
         "version": "1.0.0",
-        "type": "analysis",
+        "category_id": "00000000-0000-0000-0000-000000000001",
         "input_schema": {
             "type": "object",
             "properties": {"data": {"type": "string"}},
@@ -75,21 +75,6 @@ class TestNodeVersion:
     def test_invalid_version_text(self):
         with pytest.raises(ValidationError, match="SemVer"):
             NodeSchemaBase(**_make_node(version="abc"))
-
-
-class TestNodeType:
-    def test_valid_type(self):
-        node = NodeSchemaBase(**_make_node(type="analysis"))
-        assert node.type == NodeType.ANALYSIS
-
-    def test_all_valid_types(self):
-        for t in NodeType:
-            node = NodeSchemaBase(**_make_node(type=t.value))
-            assert node.type == t
-
-    def test_invalid_type(self):
-        with pytest.raises(ValidationError):
-            NodeSchemaBase(**_make_node(type="unknown_type"))
 
 
 class TestRuntimeConfig:

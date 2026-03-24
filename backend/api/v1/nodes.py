@@ -3,6 +3,7 @@
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.deps import get_current_user
@@ -389,15 +390,22 @@ async def set_default_version(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"版本 {version} 不存在")
 
     # Reset all versions' is_default, then set the target
-    await db.execute(
-        update(NodeVersion).where(NodeVersion.node_id == node_id).values(is_default=False)
-    )
-    await db.execute(
-        update(NodeVersion)
-        .where(NodeVersion.node_id == node_id, NodeVersion.version == version)
-        .values(is_default=True)
-    )
-    await db.commit()
+    try:
+        await db.execute(
+            update(NodeVersion).where(NodeVersion.node_id == node_id).values(is_default=False)
+        )
+        await db.execute(
+            update(NodeVersion)
+            .where(NodeVersion.node_id == node_id, NodeVersion.version == version)
+            .values(is_default=True)
+        )
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="并发写入冲突，请重试",
+        )
 
     return ApiResponse(data={"node_id": str(node_id), "default_version": version})
 

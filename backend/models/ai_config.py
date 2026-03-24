@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, LargeBinary, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -25,8 +25,9 @@ class UserAIConfig(Base):
     provider: Mapped[str] = mapped_column(String(32), nullable=False, default="openai")
     # 模型名称，如 gpt-4o、claude-opus-4-5
     model: Mapped[str] = mapped_column(String(128), nullable=False)
-    # API Key（明文存储，与 ApiKey 模型同等对待）
-    api_key: Mapped[str] = mapped_column(Text, nullable=False)
+    # API Key 加密存储（AES-256-GCM，与 service_credentials 相同方案）
+    api_key_encrypted: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    api_key_nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     # 自定义 Base URL（openai-compatible API 用，可为空）
     base_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     # 是否为默认配置

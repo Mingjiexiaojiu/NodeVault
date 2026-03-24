@@ -10,9 +10,11 @@ import structlog
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy import func, select as sa_select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.deps import get_current_user
+from backend.core.credential_vault import decrypt_value
 from backend.core.skill_md_generator import LLMConfig, generate_skill_md
 from backend.core.skill_registry import SkillRegistry
 from backend.database.session import get_db
@@ -250,6 +252,12 @@ async def create_version(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="并发写入冲突，请重试",
+        )
     return ApiResponse(data=_version_to_response(version), message="版本发布成功")
 
 
@@ -284,7 +292,7 @@ async def generate_skill_md_endpoint(
         llm_config = LLMConfig(
             provider=ai_cfg.provider,
             model=ai_cfg.model,
-            api_key=ai_cfg.api_key,
+            api_key=decrypt_value(bytes(ai_cfg.api_key_encrypted), bytes(ai_cfg.api_key_nonce)),
             base_url=ai_cfg.base_url,
         )
 

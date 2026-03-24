@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen" style="background: #f7f8fc">
     <!-- 顶部导航栏 -->
-    <nav class="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky top-0 z-10" style="box-shadow: 0 1px 0 rgba(0,0,0,0.04)">
+    <nav class="bg-white/95 backdrop-blur-md border-b border-gray-100 sticky top-0 z-50" style="box-shadow: 0 1px 0 rgba(0,0,0,0.04)">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex items-center justify-between h-16">
           <!-- Logo -->
@@ -37,7 +37,7 @@
               @click="showUserMenu = !showUserMenu"
             >
               <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0" style="background: linear-gradient(135deg, #6366f1, #8b5cf6)">
-                {{ auth.user?.username?.charAt(0).toUpperCase() }}
+                {{ (auth.user?.display_name || auth.user?.username)?.charAt(0).toUpperCase() }}
               </div>
               <span class="text-sm font-medium text-gray-700 max-w-[100px] truncate">{{ auth.user?.display_name || auth.user?.username }}</span>
               <svg class="w-3.5 h-3.5 text-gray-400 transition-transform duration-150" :class="showUserMenu ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">

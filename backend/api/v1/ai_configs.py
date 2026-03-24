@@ -11,6 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.deps import get_current_user
+from backend.core.credential_vault import decrypt_value, encrypt_value
 from backend.database.session import get_db
 from backend.models.ai_config import UserAIConfig
 from backend.models.user import User
@@ -22,14 +23,22 @@ router = APIRouter(prefix="/ai-configs", tags=["AI Config"])
 
 
 def _to_response(cfg: UserAIConfig) -> AIConfigResponse:
-    key = cfg.api_key or ""
-    preview = key[:8] + "***" if len(key) > 8 else "***"
+    try:
+        plaintext = decrypt_value(bytes(cfg.api_key_encrypted), bytes(cfg.api_key_nonce))
+    except Exception:
+        plaintext = ""
+    if len(plaintext) >= 8:
+        masked = plaintext[:4] + "****" + plaintext[-4:]
+    elif plaintext:
+        masked = plaintext[:2] + "****"
+    else:
+        masked = "****"
     return AIConfigResponse(
         id=cfg.id,
         name=cfg.name,
         provider=cfg.provider,
         model=cfg.model,
-        api_key_preview=preview,
+        api_key_masked=masked,
         base_url=cfg.base_url,
         is_default=cfg.is_default,
         created_at=cfg.created_at,
@@ -65,12 +74,14 @@ async def create_ai_config(
             .values(is_default=False)
         )
 
+    ciphertext, nonce = encrypt_value(payload.api_key)
     cfg = UserAIConfig(
         user_id=current_user.id,
         name=payload.name,
         provider=payload.provider,
         model=payload.model,
-        api_key=payload.api_key,
+        api_key_encrypted=ciphertext,
+        api_key_nonce=nonce,
         base_url=payload.base_url,
         is_default=payload.is_default,
     )
@@ -102,7 +113,9 @@ async def update_ai_config(
     if payload.model is not None:
         cfg.model = payload.model
     if payload.api_key is not None:
-        cfg.api_key = payload.api_key
+        ciphertext, nonce = encrypt_value(payload.api_key)
+        cfg.api_key_encrypted = ciphertext
+        cfg.api_key_nonce = nonce
     if payload.base_url is not None:
         cfg.base_url = payload.base_url
     if payload.is_default is not None:
