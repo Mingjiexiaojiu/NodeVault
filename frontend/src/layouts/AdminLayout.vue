@@ -3,7 +3,7 @@
 
     <!-- 顶部导航栏 -->
     <header class="bg-white shrink-0" style="border-bottom: 1px solid #eaecf0">
-      <div class="max-w-screen-xl mx-auto px-8 h-14 flex items-center justify-between gap-8">
+      <div class="max-w-screen-xl mx-auto px-8 h-14 grid grid-cols-3 items-center">
 
         <!-- 左：Logo -->
         <RouterLink to="/" class="flex items-center gap-2.5 shrink-0">
@@ -15,7 +15,7 @@
         </RouterLink>
 
         <!-- 中：Tab 导航 -->
-        <nav class="flex items-stretch h-14 gap-0">
+        <nav class="flex items-stretch h-14 gap-0 justify-center">
           <RouterLink
             v-for="item in navItems"
             :key="item.to"
@@ -35,7 +35,7 @@
         </nav>
 
         <!-- 右：用户信息 -->
-        <div class="flex items-center gap-2.5 shrink-0">
+        <div class="flex items-center gap-2.5 justify-end">
           <div class="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-bold" style="background: linear-gradient(135deg, #6366f1, #8b5cf6)">
             {{ (auth.user?.display_name || auth.user?.username)?.charAt(0).toUpperCase() }}
           </div>
