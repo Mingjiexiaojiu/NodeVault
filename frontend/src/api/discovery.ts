@@ -65,7 +65,7 @@ export interface BatchImportItem {
 }
 
 export interface BatchImportRequest {
-  namespace_id: string
+  department_id: string
   credential_id?: string
   base_url: string
   items: BatchImportItem[]
@@ -215,5 +215,5 @@ export interface IterateResponse {
 }
 
 /** Execute iteration actions on compared endpoints */
-export const iterateSession = (sessionId: string, actions: IterateAction[], namespaceId: string) =>
-  http.post<IterateResponse>(`/discovery/sessions/${sessionId}/iterate`, { actions, namespace_id: namespaceId })
+export const iterateSession = (sessionId: string, actions: IterateAction[], departmentId: string) =>
+  http.post<IterateResponse>(`/discovery/sessions/${sessionId}/iterate`, { actions, department_id: departmentId })

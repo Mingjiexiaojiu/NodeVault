@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter
+from fastapi import APIRouter
 
 from backend.api.v1.admin import router as admin_router
 from backend.api.v1.admin import announcement_router
@@ -17,6 +17,7 @@ from backend.api.v1.nodes import router as nodes_router
 from backend.api.v1.search import router as search_router
 from backend.api.v1.skills import router as skills_router
 from backend.api.v1.stats import router as stats_router
+from backend.api.v1.role_applications import router as role_applications_router
 from backend.api.v1.tags import router as tags_router
 
 api_router = APIRouter()
@@ -37,4 +38,5 @@ api_router.include_router(search_router)
 api_router.include_router(skills_router)
 api_router.include_router(stats_router)
 api_router.include_router(tags_router)
+api_router.include_router(role_applications_router)
 api_router.include_router(agent_router)

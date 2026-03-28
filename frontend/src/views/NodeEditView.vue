@@ -58,6 +58,21 @@
 
           </div>
 
+          <!-- 凭据绑定 -->
+          <div class="bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 class="text-sm font-semibold text-gray-700 mb-1">服务凭据</h2>
+            <p class="text-xs text-gray-400 mb-3">绑定后调用此 Node 时自动附加鉴权头。未绑定则按 base_url 前缀自动匹配。</p>
+            <select
+              v-model="form.credential_id"
+              class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors appearance-none cursor-pointer"
+            >
+              <option :value="null">不绑定（使用自动匹配）</option>
+              <option v-for="cred in credentials" :key="cred.id" :value="cred.id">
+                {{ cred.name }} — {{ cred.base_url }} ({{ cred.auth_type }})
+              </option>
+            </select>
+          </div>
+
           <!-- 状态 -->
           <div class="bg-white rounded-2xl border border-gray-200 p-6">
             <h2 class="text-sm font-semibold text-gray-700 mb-4">发布状态</h2>
@@ -113,6 +128,8 @@ import { listCategories } from '@/api/categories'
 import type { Category } from '@/api/categories'
 import type { NodeItem, NodeStatus } from '@/api/nodes'
 import BaseButton from '@/components/BaseButton.vue'
+import { listCredentials } from '@/api/credentials'
+import type { CredentialResponse } from '@/api/credentials'
 
 const route = useRoute()
 const router = useRouter()
@@ -123,12 +140,14 @@ const loadingNode = ref(true)
 const saving = ref(false)
 const submitError = ref('')
 const categoryList = ref<Category[]>([])
+const credentials = ref<CredentialResponse[]>([])
 
 const form = reactive({
   display_name: '',
   description: '',
   category_id: '',
   status: '' as NodeStatus,
+  credential_id: null as string | null,
 })
 const tagsRaw = ref('')
 
@@ -141,17 +160,20 @@ const nodeStatuses: { value: NodeStatus; label: string; icon: string }[] = [
 
 onMounted(async () => {
   try {
-    const [nodeRes, catRes] = await Promise.all([
+    const [nodeRes, catRes, credRes] = await Promise.all([
       getNode(nodeId),
       listCategories().catch(() => ({ data: [] as Category[] })),
+      listCredentials().catch(() => ({ data: [] as CredentialResponse[] })),
     ])
     node.value = nodeRes.data
     form.display_name = nodeRes.data.display_name || ''
     form.description = nodeRes.data.description || ''
     form.category_id = nodeRes.data.category_id || ''
     form.status = nodeRes.data.status
+    form.credential_id = nodeRes.data.credential_id ?? null
     tagsRaw.value = (nodeRes.data.tags ?? []).join(', ')
     categoryList.value = catRes.data
+    credentials.value = credRes.data
   } finally {
     loadingNode.value = false
   }
@@ -171,6 +193,7 @@ async function handleSubmit() {
       category_id: form.category_id || undefined,
       status: form.status,
       tags,
+      credential_id: form.credential_id,
     })
     router.push(`/nodes/${nodeId}`)
   } catch (e: unknown) {

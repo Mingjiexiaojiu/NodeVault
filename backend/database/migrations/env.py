@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 from logging.config import fileConfig
 
 from alembic import context
@@ -9,8 +9,9 @@ from backend.database.base import Base
 
 # Import all models so autogenerate can detect all tables
 import backend.models.user  # noqa: F401
-import backend.models.namespace  # noqa: F401  (includes NamespaceMember)
+import backend.models.department  # noqa: F401  (includes DepartmentMember)
 import backend.models.node  # noqa: F401
+import backend.models.role_application  # noqa: F401
 
 config = context.config
 

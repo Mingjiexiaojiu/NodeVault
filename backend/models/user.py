@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Text, UniqueConstraint
@@ -25,18 +25,21 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    department: Mapped[str | None] = mapped_column(String(128), nullable=True)
     title: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    owned_namespaces: Mapped[list["Namespace"]] = relationship(  # noqa: F821
-        "Namespace", back_populates="owner", foreign_keys="Namespace.owner_id"
+    role_applications: Mapped[list["RoleApplication"]] = relationship(  # noqa: F821
+        "RoleApplication", back_populates="applicant", foreign_keys="RoleApplication.user_id",
+        cascade="all, delete-orphan",
     )
-    memberships: Mapped[list["NamespaceMember"]] = relationship(  # noqa: F821
-        "NamespaceMember", back_populates="user"
+    owned_departments: Mapped[list["Department"]] = relationship(  # noqa: F821
+        "Department", back_populates="owner", foreign_keys="Department.owner_id"
+    )
+    department_memberships: Mapped[list["DepartmentMember"]] = relationship(  # noqa: F821
+        "DepartmentMember", back_populates="user"
     )
     api_keys: Mapped[list["ApiKey"]] = relationship(  # noqa: F821
         "ApiKey", back_populates="owner", cascade="all, delete-orphan"

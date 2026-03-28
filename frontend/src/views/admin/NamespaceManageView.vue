@@ -59,9 +59,9 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { listAllNamespaces, type AdminNamespaceListItem } from '@/api/admin'
+import { listAllDepartments, type AdminDepartmentListItem } from '@/api/admin'
 
-const namespaces = ref<AdminNamespaceListItem[]>([])
+const namespaces = ref<AdminDepartmentListItem[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = 20
@@ -74,7 +74,7 @@ const totalPages = computed(() => Math.ceil(total.value / pageSize))
 async function load() {
   loading.value = true
   try {
-    const res = await listAllNamespaces({ page: page.value, page_size: pageSize })
+    const res = await listAllDepartments({ page: page.value, page_size: pageSize })
     namespaces.value = res.data.items
     total.value = res.data.total
   } finally {

@@ -28,6 +28,15 @@
       <div class="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl shadow-indigo-100/50 border border-white/60 px-8 py-8">
         <h2 class="text-lg font-semibold text-gray-800 mb-6">创建账号</h2>
 
+        <!-- 主管申请成功提示 -->
+        <div v-if="supervisorApplied"
+          class="flex items-start gap-3 text-sm text-indigo-700 bg-indigo-50 border border-indigo-100 px-4 py-3 rounded-xl mb-5">
+          <svg class="w-4 h-4 mt-0.5 shrink-0 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span>主管申请已提交，管理员审批通过后权限将自动升级</span>
+        </div>
+
         <form class="space-y-4" @submit.prevent="handleRegister">
           <!-- 昵称 -->
           <div class="space-y-1">
@@ -109,6 +118,57 @@
             <p v-if="errors.password" class="text-xs text-red-500">{{ errors.password }}</p>
           </div>
 
+          <!-- 身份选择 -->
+          <div class="space-y-2">
+            <label class="text-sm font-medium text-gray-700">加入身份</label>
+            <div class="grid grid-cols-2 gap-2">
+              <label
+                class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all"
+                :class="form.requested_role === 2
+                  ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
+                  : 'border-gray-200 hover:border-gray-300 text-gray-600'">
+                <input type="radio" :value="2" v-model="form.requested_role" class="accent-indigo-600" />
+                <div>
+                  <div class="text-sm font-medium">普通用户</div>
+                  <div class="text-xs text-gray-400">加入已有部门</div>
+                </div>
+              </label>
+              <label
+                class="flex items-center gap-2.5 px-3 py-2.5 rounded-xl border cursor-pointer transition-all"
+                :class="form.requested_role === 1
+                  ? 'border-violet-400 bg-violet-50 text-violet-700'
+                  : 'border-gray-200 hover:border-gray-300 text-gray-600'">
+                <input type="radio" :value="1" v-model="form.requested_role" class="accent-violet-600" />
+                <div>
+                  <div class="text-sm font-medium">申请主管</div>
+                  <div class="text-xs text-gray-400">需等待审批</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- 部门选择（仅普通用户） -->
+          <div v-if="form.requested_role === 2" class="space-y-1">
+            <label class="text-sm font-medium text-gray-700">选择部门 <span class="text-gray-400 font-normal text-xs">（可选）</span></label>
+            <select v-model="form.department_id"
+              class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition">
+              <option value="">— 暂不选择部门 —</option>
+              <option v-for="dept in departments" :key="dept.id" :value="dept.id">
+                {{ dept.display_name || dept.slug }}
+              </option>
+            </select>
+            <p v-if="deptLoadFailed" class="text-xs text-gray-400">部门列表加载失败，可跳过</p>
+          </div>
+
+          <!-- 主管申请提示 -->
+          <div v-if="form.requested_role === 1"
+            class="flex items-start gap-2 text-xs text-violet-600 bg-violet-50 border border-violet-100 px-3 py-2.5 rounded-xl">
+            <svg class="w-3.5 h-3.5 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>提交后需等待管理员审批，审批期间账号可正常使用</span>
+          </div>
+
           <div v-if="errorMsg"
             class="flex items-center gap-2 text-sm text-red-600 bg-red-50 border border-red-100 px-4 py-3 rounded-xl">
             <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -142,19 +202,43 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { register } from '@/api/auth'
 import { useAuthStore } from '@/stores/auth'
+import http from '@/api/http'
 
 const router = useRouter()
 const auth = useAuthStore()
 
-const form = reactive({ email: '', username: '', display_name: '', password: '' })
+interface DeptOption { id: string; slug: string; display_name: string | null }
+
+const form = reactive({
+  email: '',
+  username: '',
+  display_name: '',
+  password: '',
+  requested_role: 2,
+  department_id: '',
+})
 const errors = reactive({ email: '', username: '', display_name: '', password: '' })
 const errorMsg = ref('')
 const loading = ref(false)
 const showPwd = ref(false)
+const supervisorApplied = ref(false)
+const departments = ref<DeptOption[]>([])
+const deptLoadFailed = ref(false)
+
+async function loadDepartments() {
+  try {
+    const res = await http.get<{ items: DeptOption[] }>('/departments')
+    departments.value = res.data?.items ?? (Array.isArray(res.data) ? res.data : [])
+  } catch {
+    deptLoadFailed.value = true
+  }
+}
+
+onMounted(loadDepartments)
 
 function validatePassword(pwd: string): string {
   if (pwd.length < 8) return '密码至少 8 位'
@@ -177,6 +261,7 @@ async function handleRegister() {
   errors.display_name = ''
   errors.password = ''
   errorMsg.value = ''
+  supervisorApplied.value = false
 
   if (!form.display_name.trim()) { errors.display_name = '请输入昵称'; return }
   if (!form.email) { errors.email = '请输入邮箱'; return }
@@ -188,7 +273,22 @@ async function handleRegister() {
 
   loading.value = true
   try {
-    await register({ email: form.email, username: form.username, display_name: form.display_name.trim(), password: form.password })
+    const payload: Parameters<typeof register>[0] = {
+      email: form.email,
+      username: form.username,
+      display_name: form.display_name.trim(),
+      password: form.password,
+      requested_role: form.requested_role,
+    }
+    if (form.requested_role === 2 && form.department_id) {
+      payload.department_id = form.department_id
+    }
+    await register(payload)
+
+    if (form.requested_role === 1) {
+      supervisorApplied.value = true
+    }
+
     try {
       await auth.login({ identifier: form.email, password: form.password })
       router.push('/')

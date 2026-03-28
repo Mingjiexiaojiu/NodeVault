@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from backend.schemas.role_application import PendingRoleApplication
+
 PASSWORD_PATTERN = re.compile(r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$")
 
 
@@ -12,6 +14,8 @@ class UserRegister(BaseModel):
     username: str = Field(..., min_length=8, max_length=64, pattern=r"^[a-zA-Z0-9_][a-zA-Z0-9_-]{7,63}$")
     display_name: str = Field(..., min_length=1, max_length=128)
     password: str
+    requested_role: int = Field(default=2, description="注册身份：2=普通用户，1=申请主管")
+    department_id: uuid.UUID | None = Field(default=None, description="普通用户选择加入的部门（可选）")
 
     @field_validator("password")
     @classmethod
@@ -33,7 +37,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-class UserNamespaceBrief(BaseModel):
+class UserDepartmentBrief(BaseModel):
     id: uuid.UUID
     slug: str
     display_name: str | None = None
@@ -51,9 +55,9 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
     bio: str | None = None
     phone: str | None = None
-    department: str | None = None
     title: str | None = None
-    namespaces: list[UserNamespaceBrief] = []
+    departments: list[UserDepartmentBrief] = []
+    pending_role_application: PendingRoleApplication | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -64,7 +68,6 @@ class ProfileUpdate(BaseModel):
     avatar_url: str | None = None
     bio: str | None = None
     phone: str | None = None
-    department: str | None = None
     title: str | None = None
 
 

@@ -1,21 +1,12 @@
-## ADDED Requirements
-
+## Purpose
+提供 NodeVault 管理员后台的前端页面结构、路由守卫及各管理模块 UI。
+## Requirements
 ### Requirement: Admin layout and route guard
-前端 SHALL 提供独立的 `AdminLayout.vue` 布局组件，所有 `/admin/*` 路由使用此布局。路由守卫 SHALL 在 `beforeEach` 中验证当前用户 role === 0，否则重定向至 `/`。
+管理员导航栏 SHALL 包含 7 个 Tab 项，顺序为：`用户管理 | 全局节点 | 分类管理 | 平台统计 | 部门管理 | 申请管理 | 系统设置`。"平台统计"SHALL 位于第 4 个位置（正中间），"申请管理"SHALL 替换原"授权管理"。
 
-#### Scenario: Superadmin navigates to admin area
-- **WHEN** role=0 的已登录用户导航到 `/admin`
-- **THEN** 系统显示 AdminLayout 及默认子页面（概览/用户管理）
-
-#### Scenario: Regular user attempts to access admin route
-- **WHEN** role=2 的用户直接在地址栏输入 `/admin/users`
-- **THEN** 路由守卫将其重定向到 `/`，不加载管理页面
-
-#### Scenario: Admin navigation sidebar
-- **WHEN** 超管在管理区域内
-- **THEN** 布局左侧显示包含「用户管理、全局节点、分类管理、平台统计、系统设置」的导航侧栏
-
----
+#### Scenario: 导航顺序正确
+- **WHEN** 管理员访问任意管理页面
+- **THEN** 顶部导航 SHALL 显示上述 7 项，平台统计位于中间，申请管理位于倒数第二位
 
 ### Requirement: User management page
 前端 SHALL 提供 `/admin/users` 页面，展示所有用户列表，支持关键词搜索，支持封禁/解封/角色变更操作。
@@ -70,3 +61,26 @@
 #### Scenario: Edit platform announcement
 - **WHEN** 超管在公告输入框输入内容并点击保存
 - **THEN** 前端调用 PUT settings/platform_announcement 接口，成功后显示更新成功提示
+
+### Requirement: 申请管理页面
+管理员后台 SHALL 提供"申请管理"页面（路由 `/admin/applications`），展示主管角色申请列表。页面 SHALL 包含：
+- 顶部统计卡片：待审批数、已批准数、已拒绝数
+- 申请列表表格：申请人用户名、邮箱、申请角色、申请理由（可为空显示"—"）、申请时间、状态徽章
+- 每条 pending 申请 SHALL 有"通过"和"拒绝"操作按钮，点击拒绝时弹出备注输入框
+- 支持按 status 筛选（全部/待审批/已批准/已拒绝）
+
+#### Scenario: 查看待审批申请
+- **WHEN** 管理员进入申请管理页
+- **THEN** 页面 SHALL 默认展示所有 pending 状态的申请
+
+#### Scenario: 审批操作即时反馈
+- **WHEN** 管理员点击"通过"按钮
+- **THEN** 该行申请状态 SHALL 立即更新为"已批准"，操作按钮 SHALL 消失
+
+### Requirement: API Key 管理迁移至系统设置
+原"授权管理"页中的 API Key 审计列表 SHALL 迁移至"系统设置"页（`/admin/settings`），作为独立的区块展示，标题为"API 密钥管理"。
+
+#### Scenario: 系统设置页展示 API Key
+- **WHEN** 管理员访问系统设置页
+- **THEN** 页面 SHALL 包含 API 密钥管理区块，功能与原授权管理页一致
+

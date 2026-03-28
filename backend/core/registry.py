@@ -1,11 +1,11 @@
-﻿import uuid
+import uuid
 from typing import Any
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.models.namespace import Namespace, NamespaceMember
+from backend.models.department import Department, DepartmentMember
 from backend.models.node import Node, NodeInvocationLog, NodeTag, NodeVersion
 from backend.models.skill import Skill
 from backend.models.skill_node import SkillNode
@@ -18,58 +18,48 @@ class NodeRegistry:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def _get_namespace(self, owner: User, namespace_id: uuid.UUID | None = None) -> Namespace:
-        """获取命名空间。若指定了 namespace_id 则验证成员身份并返回，否则返回用户的个人命名空间。"""
-        if namespace_id:
-            result = await self.db.execute(
-                select(Namespace).where(Namespace.id == namespace_id)
-            )
-            ns = result.scalar_one_or_none()
-            if ns is None:
-                raise ValueError("指定的部门不存在")
-            # 验证成员身份
-            membership = await self.db.execute(
-                select(NamespaceMember).where(
-                    NamespaceMember.namespace_id == namespace_id,
-                    NamespaceMember.user_id == owner.id,
-                )
-            )
-            if membership.scalar_one_or_none() is None:
-                raise PermissionError("您不是该部门成员，无法在此部门下操作")
-            return ns
-        # 默认：返回用户拥有的第一个命名空间（个人命名空间）
+    async def _get_department(self, owner: User, department_id: uuid.UUID) -> Department:
+        """获取部门并验证成员身份。"""
         result = await self.db.execute(
-            select(Namespace).where(Namespace.owner_id == owner.id).limit(1)
+            select(Department).where(Department.id == department_id)
         )
-        ns = result.scalar_one_or_none()
-        if ns is None:
-            raise ValueError(f"No namespace found for user {owner.id}")
-        return ns
+        dept = result.scalar_one_or_none()
+        if dept is None:
+            raise ValueError("指定的部门不存在")
+        membership = await self.db.execute(
+            select(DepartmentMember).where(
+                DepartmentMember.department_id == department_id,
+                DepartmentMember.user_id == owner.id,
+            )
+        )
+        if membership.scalar_one_or_none() is None:
+            raise PermissionError("您不是该部门成员，无法在此部门下操作")
+        return dept
 
-    async def _get_user_namespace_ids(self, user: User) -> list[uuid.UUID]:
-        """获取用户所属的所有命名空间 ID（通过成员关系）"""
+    async def _get_user_department_ids(self, user: User) -> list[uuid.UUID]:
+        """获取用户所属的所有部门 ID（通过成员关系）"""
         result = await self.db.execute(
-            select(NamespaceMember.namespace_id).where(NamespaceMember.user_id == user.id)
+            select(DepartmentMember.department_id).where(DepartmentMember.user_id == user.id)
         )
         return list(result.scalars().all())
 
-    async def _check_namespace_permission(self, node: Node, user: User) -> None:
-        """检查用户是否是节点所属命名空间的成员（同部门成员才可写）"""
+    async def _check_department_permission(self, node: Node, user: User) -> None:
+        """检查用户是否是节点所属部门的成员（同部门成员才可写）"""
         membership = await self.db.execute(
-            select(NamespaceMember).where(
-                NamespaceMember.namespace_id == node.namespace_id,
-                NamespaceMember.user_id == user.id,
+            select(DepartmentMember).where(
+                DepartmentMember.department_id == node.department_id,
+                DepartmentMember.user_id == user.id,
             )
         )
         if membership.scalar_one_or_none() is None:
             raise PermissionError("无权操作此节点：仅本部门成员可修改、删除和管理版本")
 
     async def create_node(self, payload: NodeCreate, owner: User) -> Node:
-        ns = await self._get_namespace(owner)
+        await self._get_department(owner, payload.department_id)
 
         node = Node(
             name=payload.name,
-            namespace_id=ns.id,
+            department_id=payload.department_id,
             owner_id=owner.id,
             display_name=payload.display_name,
             description=payload.description,
@@ -80,13 +70,18 @@ class NodeRegistry:
         self.db.add(node)
         await self.db.flush()
 
+        # Build runtime_config dict; include credential_id if provided
+        runtime_config = payload.runtime.model_dump(exclude_none=True)
+        if payload.runtime.credential_id is not None:
+            runtime_config["credential_id"] = str(payload.runtime.credential_id)
+
         # Create first version
         version = NodeVersion(
             node_id=node.id,
             version=payload.version,
             input_schema=payload.input_schema,
             output_schema=payload.output_schema,
-            runtime_config=payload.runtime.model_dump(),
+            runtime_config=runtime_config,
             is_default=True,
             created_by=owner.id,
         )
@@ -103,7 +98,7 @@ class NodeRegistry:
     async def batch_register(
         self,
         items: list[dict[str, Any]],
-        namespace_id: uuid.UUID,
+        department_id: uuid.UUID,
         owner: User,
         credential_id: uuid.UUID | None = None,
         source_path_map: dict[str, str] | None = None,
@@ -114,21 +109,21 @@ class NodeRegistry:
         Each item dict: name, endpoint, method, base_url, display_name,
         description, category, tags, input_schema, output_schema, visibility.
         """
-        # Verify namespace membership
+        # Verify department membership
         membership = await self.db.execute(
-            select(NamespaceMember).where(
-                NamespaceMember.namespace_id == namespace_id,
-                NamespaceMember.user_id == owner.id,
+            select(DepartmentMember).where(
+                DepartmentMember.department_id == department_id,
+                DepartmentMember.user_id == owner.id,
             )
         )
         if membership.scalar_one_or_none() is None:
-            raise PermissionError("Not a member of this namespace")
+            raise PermissionError("Not a member of this department")
 
         # Check name conflicts
         names = [it["name"] for it in items]
         existing = await self.db.execute(
             select(Node.name).where(
-                Node.namespace_id == namespace_id, Node.name.in_(names)
+                Node.department_id == department_id, Node.name.in_(names)
             )
         )
         conflicts = set(existing.scalars().all())
@@ -152,7 +147,7 @@ class NodeRegistry:
 
             node = Node(
                 name=it["name"],
-                namespace_id=namespace_id,
+                department_id=department_id,
                 owner_id=owner.id,
                 display_name=it.get("display_name"),
                 description=it.get("description"),
@@ -197,14 +192,14 @@ class NodeRegistry:
         source_credential_id: uuid.UUID | None = None,
     ) -> list[Node]:
         from sqlalchemy import or_
-        ns_ids = await self._get_user_namespace_ids(owner)
+        dept_ids = await self._get_user_department_ids(owner)
         if mine_only:
             # 返回用户所属所有部门的节点
             stmt = (
                 select(Node)
-                .where(Node.namespace_id.in_(ns_ids))
+                .where(Node.department_id.in_(dept_ids))
                 .where(Node.status != NodeStatus.ARCHIVED.value)
-                .options(selectinload(Node.tags), selectinload(Node.namespace), selectinload(Node.category_rel))
+                .options(selectinload(Node.tags), selectinload(Node.department), selectinload(Node.category_rel))
             )
         else:
             # public/internal nodes are visible to all authenticated users; private nodes only to members
@@ -214,11 +209,11 @@ class NodeRegistry:
                     or_(
                         Node.visibility == "public",
                         Node.visibility == "internal",
-                        Node.namespace_id.in_(ns_ids),
+                        Node.department_id.in_(dept_ids),
                     )
                 )
                 .where(Node.status != NodeStatus.ARCHIVED.value)
-                .options(selectinload(Node.tags), selectinload(Node.namespace), selectinload(Node.category_rel))
+                .options(selectinload(Node.tags), selectinload(Node.department), selectinload(Node.category_rel))
             )
         if category_id:
             stmt = stmt.where(Node.category_id == category_id)
@@ -240,7 +235,7 @@ class NodeRegistry:
             .options(
                 selectinload(Node.tags),
                 selectinload(Node.versions),
-                selectinload(Node.namespace),
+                selectinload(Node.department),
                 selectinload(Node.category_rel),
             )
         )
@@ -250,11 +245,10 @@ class NodeRegistry:
         node = await self.get_node(node_id)
         if node is None:
             raise ValueError("Node not found")
-        await self._check_namespace_permission(node, owner)
+        await self._check_department_permission(node, owner)
 
         allowed = {"display_name", "description", "category_id", "visibility", "status"}
         stale_triggers = {"description"}
-        old_skill_id = None
         changed_stale = False
         for field, value in payload.items():
             if field in allowed and value is not None:
@@ -262,6 +256,19 @@ class NodeRegistry:
                 setattr(node, field, value.value if hasattr(value, "value") else value)
                 if field in stale_triggers:
                     changed_stale = True
+
+        # Handle credential_id: update the default NodeVersion's runtime_config
+        if "credential_id" in payload:
+            default_version = next(
+                (v for v in (node.versions or []) if v.is_default), None
+            )
+            if default_version is not None:
+                rc = dict(default_version.runtime_config or {})
+                if payload["credential_id"] is None:
+                    rc.pop("credential_id", None)
+                else:
+                    rc["credential_id"] = str(payload["credential_id"])
+                default_version.runtime_config = rc
 
         await self.db.commit()
         await self.db.refresh(node)
@@ -286,7 +293,7 @@ class NodeRegistry:
         node = await self.get_node(node_id)
         if node is None:
             raise ValueError("节点不存在")
-        await self._check_namespace_permission(node, owner)
+        await self._check_department_permission(node, owner)
 
         await self.db.execute(
             update(Node)
@@ -310,7 +317,7 @@ class NodeRegistry:
         node = await self.get_node(node_id)
         if node is None:
             raise ValueError("节点不存在")
-        await self._check_namespace_permission(node, owner)
+        await self._check_department_permission(node, owner)
 
         # Check version uniqueness
         existing = await self.db.execute(
@@ -352,7 +359,7 @@ class NodeRegistry:
         node = await self.get_node(node_id)
         if node is None:
             raise ValueError("节点不存在")
-        await self._check_namespace_permission(node, owner)
+        await self._check_department_permission(node, owner)
 
         result = await self.db.execute(
             select(NodeVersion).where(
@@ -378,7 +385,7 @@ class NodeRegistry:
         node = await self.get_node(node_id)
         if node is None:
             raise ValueError("节点不存在")
-        await self._check_namespace_permission(node, owner)
+        await self._check_department_permission(node, owner)
 
         result = await self.db.execute(
             select(NodeVersion).where(

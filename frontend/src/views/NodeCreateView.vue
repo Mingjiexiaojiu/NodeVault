@@ -187,6 +187,20 @@
                 {{ errors.endpoint }}
               </p>
             </div>
+            <!-- 凭据绑定 -->
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">服务凭据（可选）</label>
+              <select
+                v-model="form.runtime.credential_id"
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-400 focus:border-violet-400 focus:bg-white transition-colors appearance-none cursor-pointer"
+              >
+                <option value="">不绑定（使用自动匹配）</option>
+                <option v-for="cred in credentials" :key="cred.id" :value="cred.id">
+                  {{ cred.name }} — {{ cred.base_url }} ({{ cred.auth_type }})
+                </option>
+              </select>
+              <p class="text-xs text-gray-400">绑定后调用此 Node 时自动使用该凭据鉴权。未绑定则按 base_url 前缀自动匹配。</p>
+            </div>
           </div>
         </section>
 
@@ -278,6 +292,8 @@ import { createNode } from '@/api/nodes'
 import { listCategories } from '@/api/categories'
 import type { Category } from '@/api/categories'
 import BaseButton from '@/components/BaseButton.vue'
+import { listCredentials } from '@/api/credentials'
+import type { CredentialResponse } from '@/api/credentials'
 
 const router = useRouter()
 
@@ -294,12 +310,15 @@ const categoryList = ref<Category[]>([])
 
 onMounted(async () => {
   try {
-    const res = await listCategories()
-    categoryList.value = res.data
+    const [catRes, credRes] = await Promise.all([listCategories(), listCredentials()])
+    categoryList.value = catRes.data
+    credentials.value = credRes.data
   } catch {
     // 非关键性错误，静默处理
   }
 })
+
+const credentials = ref<CredentialResponse[]>([])
 
 const form = reactive({
   name: '',
@@ -308,7 +327,7 @@ const form = reactive({
   description: '',
   category_id: '',
   tagsRaw: '',
-  runtime: { type: 'http', endpoint: '', method: 'POST' },
+  runtime: { type: 'http', endpoint: '', method: 'POST', credential_id: '' as string | null },
   inputSchemaRaw: defaultSchema,
   outputSchemaRaw: defaultSchema,
 })
@@ -390,6 +409,7 @@ async function handleSubmit() {
         type: form.runtime.type,
         endpoint: form.runtime.endpoint,
         method: form.runtime.method,
+        ...(form.runtime.credential_id ? { credential_id: form.runtime.credential_id } : {}),
       },
       input_schema: parsedInputSchema.value as Record<string, unknown>,
       output_schema: parsedOutputSchema.value as Record<string, unknown>,

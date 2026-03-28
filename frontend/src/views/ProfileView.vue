@@ -35,10 +35,10 @@
     <!-- 所属部门 -->
     <div class="bg-white rounded-2xl border border-gray-200 p-6 mb-6">
       <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">我的部门</h2>
-      <div v-if="!authStore.user?.namespaces?.length" class="text-sm text-gray-400">暂未加入任何部门</div>
+      <div v-if="!authStore.user?.departments?.length" class="text-sm text-gray-400">暂未加入任何部门</div>
       <div v-else class="space-y-2">
         <RouterLink
-          v-for="ns in authStore.user.namespaces"
+          v-for="ns in authStore.user.departments"
           :key="ns.id"
           :to="`/departments/${ns.id}`"
           class="flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg hover:bg-indigo-50 transition-colors"

@@ -136,6 +136,12 @@ const router = createRouter({
       component: () => import('@/views/AiConfigView.vue'),
       meta: { layout: 'app' },
     },
+    {
+      path: '/credentials',
+      name: 'credentials',
+      component: () => import('@/views/CredentialListView.vue'),
+      meta: { layout: 'app' },
+    },
     // Admin routes
     {
       path: '/admin',
@@ -174,9 +180,9 @@ const router = createRouter({
           meta: { requireSuperAdmin: true },
         },
         {
-          path: 'auth',
-          name: 'admin-auth',
-          component: () => import('@/views/admin/AuthManageView.vue'),
+          path: 'applications',
+          name: 'admin-applications',
+          component: () => import('@/views/admin/ApplicationsView.vue'),
           meta: { requireSuperAdmin: true },
         },
         {

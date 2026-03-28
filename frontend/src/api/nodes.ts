@@ -40,8 +40,9 @@ export interface NodeItem {
   tags: string[]
   owner_id: string
   owner_username: string | null
-  namespace_id: string
-  namespace_slug: string | null
+  department_id: string
+  department_slug: string | null
+  credential_id: string | null
   source_credential_id: string | null
   source_path: string | null
   source_service_name: string | null
@@ -85,6 +86,7 @@ export interface CreateNodePayload {
   display_name?: string
   description?: string
   category_id: string
+  department_id: string
   tags?: string[]
   version?: string
   runtime: {
@@ -93,6 +95,7 @@ export interface CreateNodePayload {
     method: string
     timeout?: number
     headers?: Record<string, string>
+    credential_id?: string | null
   }
   input_schema?: Record<string, unknown>
   output_schema?: Record<string, unknown>
@@ -128,6 +131,7 @@ export interface UpdateNodePayload {
   category_id?: string
   status?: NodeStatus
   tags?: string[]
+  credential_id?: string | null
 }
 
 export const listNodes = (params?: NodeListParams) =>

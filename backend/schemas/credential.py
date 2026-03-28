@@ -65,3 +65,29 @@ class CredentialDetail(CredentialResponse):
     """Same as CredentialResponse — secrets always hidden."""
 
     pass
+
+
+# ---------- Update ----------
+
+
+class CredentialUpdate(BaseModel):
+    name: str | None = Field(None, min_length=1, max_length=128)
+    token_ttl: int | None = None
+
+    # bearer_login / basic — overwrite password (leave None to keep existing)
+    password: str | None = None
+
+    # bearer_static — overwrite static token (leave None to keep existing)
+    static_token: str | None = None
+
+    # api_key — overwrite api key value (leave None to keep existing)
+    api_key_value: str | None = None
+
+
+# ---------- Test ----------
+
+
+class CredentialTestResult(BaseModel):
+    success: bool
+    message: str
+    latency_ms: int | None = None

@@ -24,7 +24,7 @@
       </div>
       <div class="bg-white rounded-xl border border-gray-200 p-5">
         <div class="text-sm text-gray-500">我所在的部门</div>
-        <div class="text-2xl font-bold text-indigo-600 mt-1">{{ authStore.user?.namespaces?.length ?? 0 }}</div>
+        <div class="text-2xl font-bold text-indigo-600 mt-1">{{ authStore.user?.departments?.length ?? 0 }}</div>
       </div>
       <div class="bg-white rounded-xl border border-gray-200 p-5">
         <div class="text-sm text-gray-500">节点总数</div>
@@ -129,7 +129,7 @@ const totalNodes = computed(() => departments.value.reduce((sum, d) => sum + d.n
 const canCreate = computed(() => (authStore.user?.role ?? 2) <= 1)
 
 function isMy(deptId: string) {
-  return authStore.user?.namespaces?.some(ns => ns.id === deptId) ?? false
+  return authStore.user?.departments?.some(ns => ns.id === deptId) ?? false
 }
 
 function formatDate(iso: string) {

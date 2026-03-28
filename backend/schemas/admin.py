@@ -25,9 +25,8 @@ class AdminUserDetail(AdminUserListItem):
     avatar_url: str | None = None
     bio: str | None = None
     phone: str | None = None
-    department: str | None = None
     title: str | None = None
-    namespace_count: int = 0
+    department_count: int = 0
     node_count: int = 0
     skill_count: int = 0
 
@@ -48,8 +47,8 @@ class AdminNodeListItem(BaseModel):
     id: uuid.UUID
     name: str
     display_name: str | None = None
-    namespace_id: uuid.UUID
-    namespace_slug: str | None = None
+    department_id: uuid.UUID
+    department_slug: str | None = None
     owner_id: uuid.UUID
     owner_username: str | None = None
     category_id: uuid.UUID
@@ -66,7 +65,7 @@ class AdminNodeStatusUpdate(BaseModel):
     status: str  # "active" | "disabled"
 
 
-class AdminNamespaceListItem(BaseModel):
+class AdminDepartmentListItem(BaseModel):
     id: uuid.UUID
     slug: str
     display_name: str | None = None
@@ -83,8 +82,8 @@ class AdminSkillListItem(BaseModel):
     id: uuid.UUID
     name: str
     display_name: str | None = None
-    namespace_id: uuid.UUID
-    namespace_slug: str | None = None
+    department_id: uuid.UUID
+    department_slug: str | None = None
     owner_id: uuid.UUID
     owner_username: str | None = None
     status: str
@@ -117,7 +116,7 @@ class TopNodeItem(BaseModel):
     id: uuid.UUID
     name: str
     display_name: str | None = None
-    namespace_slug: str | None = None
+    department_slug: str | None = None
     owner_username: str | None = None
     invocation_count: int
 
@@ -158,3 +157,25 @@ class PaginatedResponse(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+# ─────────────────────────────────────────────
+# Role Application Management
+# ─────────────────────────────────────────────
+
+class AdminRoleApplicationListItem(BaseModel):
+    id: uuid.UUID
+    user_id: uuid.UUID
+    username: str | None = None
+    email: str | None = None
+    display_name: str | None = None
+    requested_role: int
+    requested_role_label: str
+    status: str
+    reason: str | None = None
+    review_note: str | None = None
+    reviewed_by: uuid.UUID | None = None
+    created_at: datetime
+    reviewed_at: datetime | None = None
+
+    model_config = {"from_attributes": True}

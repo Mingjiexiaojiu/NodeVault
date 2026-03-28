@@ -8,7 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.auth.deps import get_current_user
 from backend.database.session import get_db
-from backend.models.namespace import Namespace, NamespaceMember
+from backend.models.department import Department, DepartmentMember
 from backend.models.node import Node
 from backend.models.user import User
 from backend.schemas.enums import NodeStatus
@@ -51,12 +51,12 @@ async def list_departments(
     # 查询部门列表，附带成员数和节点数
     stmt = (
         select(
-            Namespace,
-            func.count(NamespaceMember.id.distinct()).label("member_count"),
+            Department,
+            func.count(DepartmentMember.id.distinct()).label("member_count"),
         )
-        .outerjoin(NamespaceMember, NamespaceMember.namespace_id == Namespace.id)
-        .group_by(Namespace.id)
-        .order_by(Namespace.created_at.desc())
+        .outerjoin(DepartmentMember, DepartmentMember.department_id == Department.id)
+        .group_by(Department.id)
+        .order_by(Department.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )
@@ -65,27 +65,27 @@ async def list_departments(
 
     # 单独查节点数
     node_count_stmt = (
-        select(Node.namespace_id, func.count(Node.id))
+        select(Node.department_id, func.count(Node.id))
         .where(Node.status != NodeStatus.ARCHIVED.value)
-        .group_by(Node.namespace_id)
+        .group_by(Node.department_id)
     )
     nc_result = await db.execute(node_count_stmt)
     node_counts = dict(nc_result.all())
 
     data = []
-    for ns, member_count in rows:
+    for dept, member_count in rows:
         data.append({
-            "id": str(ns.id),
-            "slug": ns.slug,
-            "display_name": ns.display_name,
-            "description": ns.description,
-            "owner_id": str(ns.owner_id),
+            "id": str(dept.id),
+            "slug": dept.slug,
+            "display_name": dept.display_name,
+            "description": dept.description,
+            "owner_id": str(dept.owner_id),
             "member_count": member_count,
-            "node_count": node_counts.get(ns.id, 0),
-            "created_at": ns.created_at.isoformat(),
+            "node_count": node_counts.get(dept.id, 0),
+            "created_at": dept.created_at.isoformat(),
         })
 
-    total_stmt = select(func.count(Namespace.id))
+    total_stmt = select(func.count(Department.id))
     total = (await db.execute(total_stmt)).scalar() or 0
 
     return ApiResponse(data={"items": data, "total": total})
@@ -102,26 +102,26 @@ async def create_department(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅主管及以上身份可创建部门")
 
     # 检查 slug 唯一
-    existing = await db.execute(select(Namespace).where(Namespace.slug == payload.slug))
+    existing = await db.execute(select(Department).where(Department.slug == payload.slug))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="部门标识已存在")
 
-    ns = Namespace(
+    dept = Department(
         slug=payload.slug,
         display_name=payload.display_name,
         description=payload.description,
         owner_id=current_user.id,
     )
-    db.add(ns)
+    db.add(dept)
     await db.flush()
 
     # 创建者自动成为管理员
-    db.add(NamespaceMember(namespace_id=ns.id, user_id=current_user.id, role="admin"))
+    db.add(DepartmentMember(department_id=dept.id, user_id=current_user.id, role="admin"))
     await db.commit()
-    await db.refresh(ns)
+    await db.refresh(dept)
 
     return ApiResponse(
-        data={"id": str(ns.id), "slug": ns.slug, "display_name": ns.display_name},
+        data={"id": str(dept.id), "slug": dept.slug, "display_name": dept.display_name},
         message="部门已创建",
     )
 
@@ -133,18 +133,18 @@ async def get_department(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(Namespace)
-        .where(Namespace.id == dept_id)
-        .options(selectinload(Namespace.members).selectinload(NamespaceMember.user))
+        select(Department)
+        .where(Department.id == dept_id)
+        .options(selectinload(Department.members).selectinload(DepartmentMember.user))
     )
-    ns = result.scalar_one_or_none()
-    if ns is None:
+    dept = result.scalar_one_or_none()
+    if dept is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="部门不存在")
 
     # 获取部门内的节点
     nodes_stmt = (
         select(Node)
-        .where(Node.namespace_id == dept_id, Node.status != NodeStatus.ARCHIVED.value)
+        .where(Node.department_id == dept_id, Node.status != NodeStatus.ARCHIVED.value)
         .options(selectinload(Node.tags))
         .order_by(Node.updated_at.desc())
         .limit(100)
@@ -153,7 +153,7 @@ async def get_department(
     nodes = nodes_result.scalars().all()
 
     # 获取创建者信息
-    owner_result = await db.execute(select(User).where(User.id == ns.owner_id))
+    owner_result = await db.execute(select(User).where(User.id == dept.owner_id))
     owner = owner_result.scalar_one_or_none()
 
     # 统计数据
@@ -175,16 +175,16 @@ async def get_department(
         type_counts[n.visibility] = type_counts.get(n.visibility, 0) + 1
 
     return ApiResponse(data={
-        "id": str(ns.id),
-        "slug": ns.slug,
-        "display_name": ns.display_name,
-        "description": ns.description,
-        "owner_id": str(ns.owner_id),
+        "id": str(dept.id),
+        "slug": dept.slug,
+        "display_name": dept.display_name,
+        "description": dept.description,
+        "owner_id": str(dept.owner_id),
         "owner_username": owner.username if owner else None,
-        "created_at": ns.created_at.isoformat(),
+        "created_at": dept.created_at.isoformat(),
         "stats": {
             "node_count": len(nodes),
-            "member_count": len(ns.members),
+            "member_count": len(dept.members),
             "total_invocations": total_invocations,
             "status_distribution": status_counts,
             "type_distribution": type_counts,
@@ -197,7 +197,7 @@ async def get_department(
                 "role": m.role,
                 "joined_at": m.joined_at.isoformat(),
             }
-            for m in ns.members
+            for m in dept.members
         ],
         "nodes": [
             {
@@ -221,28 +221,29 @@ async def update_department(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    ns = (await db.execute(select(Namespace).where(Namespace.id == dept_id))).scalar_one_or_none()
-    if ns is None:
+    dept = (await db.execute(select(Department).where(Department.id == dept_id))).scalar_one_or_none()
+    if dept is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="部门不存在")
 
     # 仅管理员可修改
     membership = (await db.execute(
-        select(NamespaceMember).where(
-            NamespaceMember.namespace_id == dept_id,
-            NamespaceMember.user_id == current_user.id,
-            NamespaceMember.role == "admin",
+        select(DepartmentMember).where(
+            DepartmentMember.department_id == dept_id,
+            DepartmentMember.user_id == current_user.id,
+            DepartmentMember.role == "admin",
+            DepartmentMember.status == "active",
         )
     )).scalar_one_or_none()
     if membership is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅部门管理员可修改部门信息")
 
     if payload.display_name is not None:
-        ns.display_name = payload.display_name
+        dept.display_name = payload.display_name
     if payload.description is not None:
-        ns.description = payload.description
+        dept.description = payload.description
     await db.commit()
 
-    return ApiResponse(data={"id": str(ns.id), "display_name": ns.display_name, "description": ns.description})
+    return ApiResponse(data={"id": str(dept.id), "display_name": dept.display_name, "description": dept.description})
 
 
 @router.post("/{dept_id}/members", response_model=ApiResponse, summary="添加部门成员")
@@ -253,16 +254,17 @@ async def add_member(
     current_user: User = Depends(get_current_user),
 ):
     # 验证部门存在
-    ns = (await db.execute(select(Namespace).where(Namespace.id == dept_id))).scalar_one_or_none()
-    if ns is None:
+    dept = (await db.execute(select(Department).where(Department.id == dept_id))).scalar_one_or_none()
+    if dept is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="部门不存在")
 
     # 仅管理员可添加成员
     admin_check = (await db.execute(
-        select(NamespaceMember).where(
-            NamespaceMember.namespace_id == dept_id,
-            NamespaceMember.user_id == current_user.id,
-            NamespaceMember.role == "admin",
+        select(DepartmentMember).where(
+            DepartmentMember.department_id == dept_id,
+            DepartmentMember.user_id == current_user.id,
+            DepartmentMember.role == "admin",
+            DepartmentMember.status == "active",
         )
     )).scalar_one_or_none()
     if admin_check is None:
@@ -277,15 +279,15 @@ async def add_member(
 
     # 检查是否已是成员
     existing = (await db.execute(
-        select(NamespaceMember).where(
-            NamespaceMember.namespace_id == dept_id,
-            NamespaceMember.user_id == target_user.id,
+        select(DepartmentMember).where(
+            DepartmentMember.department_id == dept_id,
+            DepartmentMember.user_id == target_user.id,
         )
     )).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该用户已是部门成员")
 
-    db.add(NamespaceMember(namespace_id=dept_id, user_id=target_user.id, role=payload.role))
+    db.add(DepartmentMember(department_id=dept_id, user_id=target_user.id, role=payload.role))
     await db.commit()
 
     return ApiResponse(message=f"已将 {payload.username} 添加为部门{payload.role}")
@@ -298,29 +300,30 @@ async def remove_member(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    ns = (await db.execute(select(Namespace).where(Namespace.id == dept_id))).scalar_one_or_none()
-    if ns is None:
+    dept = (await db.execute(select(Department).where(Department.id == dept_id))).scalar_one_or_none()
+    if dept is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="部门不存在")
 
     # 仅管理员可操作
     admin_check = (await db.execute(
-        select(NamespaceMember).where(
-            NamespaceMember.namespace_id == dept_id,
-            NamespaceMember.user_id == current_user.id,
-            NamespaceMember.role == "admin",
+        select(DepartmentMember).where(
+            DepartmentMember.department_id == dept_id,
+            DepartmentMember.user_id == current_user.id,
+            DepartmentMember.role == "admin",
+            DepartmentMember.status == "active",
         )
     )).scalar_one_or_none()
     if admin_check is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅部门管理员可移除成员")
 
     # 不能移除部门创建者
-    if user_id == ns.owner_id:
+    if user_id == dept.owner_id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="不能移除部门创建者")
 
     membership = (await db.execute(
-        select(NamespaceMember).where(
-            NamespaceMember.namespace_id == dept_id,
-            NamespaceMember.user_id == user_id,
+        select(DepartmentMember).where(
+            DepartmentMember.department_id == dept_id,
+            DepartmentMember.user_id == user_id,
         )
     )).scalar_one_or_none()
     if membership is None:

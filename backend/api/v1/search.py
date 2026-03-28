@@ -26,7 +26,7 @@ async def search_nodes(
     q: str = Query("", description="搜索关键词，支持中英文"),
     category: str | None = Query(None),
     tags: list[str] = Query([]),
-    namespace_id: str | None = Query(None),
+    department_id: str | None = Query(None),
     sort: str = Query("relevance", enum=["relevance", "latest", "popular"]),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
@@ -42,8 +42,8 @@ async def search_nodes(
         filters["category"] = category
     if tags:
         filters["tags"] = tags
-    if namespace_id:
-        filters["namespace_id"] = namespace_id
+    if department_id:
+        filters["department_id"] = department_id
 
     try:
         result = NodeSearchIndex().search(
@@ -118,7 +118,7 @@ async def reindex_nodes(
                 "description": node.description,
                 "category": node.category_rel.display_name if node.category_rel else None,
                 "status": node.status,
-                "namespace_id": str(node.namespace_id),
+                "department_id": str(node.department_id),
                 "invocation_count": node.invocation_count,
                 "tags": [t.tag for t in node.tags],
                 "created_at": node.created_at.isoformat() if node.created_at else None,

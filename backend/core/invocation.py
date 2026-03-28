@@ -70,7 +70,9 @@ async def invoke_node_by_name(
     error_message: str | None = None
 
     try:
-        output, latency_ms = await executor.execute(version.runtime_config, arguments, db=db)
+        output, latency_ms = await executor.execute(
+            version.runtime_config, arguments, db=db, owner_id=user.id
+        )
     except TimeoutError as exc:
         invoke_status = "timeout"
         error_message = str(exc)

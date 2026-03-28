@@ -27,6 +27,7 @@ class HTTPExecutor:
         runtime_config: dict[str, Any],
         input_data: dict[str, Any],
         db: AsyncSession | None = None,
+        owner_id: uuid.UUID | None = None,
     ) -> tuple[dict[str, Any], int]:
         endpoint: str = runtime_config["endpoint"]
         method: str = runtime_config.get("method", "POST").upper()
@@ -37,6 +38,13 @@ class HTTPExecutor:
 
         if credential_id and db:
             credential = await self._get_credential(db, uuid.UUID(credential_id))
+            if credential:
+                headers = await self._apply_credential_auth(
+                    headers, credential, db
+                )
+        elif not credential_id and db and owner_id:
+            # Auto-match: find a credential whose base_url is a prefix of the endpoint
+            credential = await self._auto_match_credential(db, owner_id, endpoint)
             if credential:
                 headers = await self._apply_credential_auth(
                     headers, credential, db
@@ -113,6 +121,29 @@ class HTTPExecutor:
             select(ServiceCredential).where(ServiceCredential.id == credential_id)
         )
         return result.scalar_one_or_none()
+
+    async def _auto_match_credential(
+        self,
+        db: AsyncSession,
+        owner_id: uuid.UUID,
+        endpoint: str,
+    ) -> ServiceCredential | None:
+        """Find the best matching credential for the given endpoint by longest base_url prefix."""
+        result = await db.execute(
+            select(ServiceCredential).where(
+                ServiceCredential.owner_id == owner_id,
+            )
+        )
+        candidates = result.scalars().all()
+
+        best: ServiceCredential | None = None
+        best_len = 0
+        for cred in candidates:
+            base = cred.base_url.rstrip("/")
+            if endpoint.startswith(base) and len(base) > best_len:
+                best = cred
+                best_len = len(base)
+        return best
 
     async def _apply_credential_auth(
         self,

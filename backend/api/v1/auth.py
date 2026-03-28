@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,12 +6,14 @@ from backend.auth.deps import get_current_user
 from backend.auth.jwt import create_access_token, get_password_hash, verify_password
 from backend.database.session import get_db
 from backend.models.api_key import ApiKey, generate_api_key
-from backend.models.namespace import Namespace, NamespaceMember
+from backend.models.department import Department, DepartmentMember
+from backend.models.role_application import RoleApplication
 from backend.models.user import User
 from backend.schemas.auth import (
     ApiKeyCreate, ApiKeyCreated, ApiKeyResponse,
-    TokenResponse, UserLogin, UserRegister, UserNamespaceBrief, UserResponse, ProfileUpdate,
+    TokenResponse, UserLogin, UserRegister, UserDepartmentBrief, UserResponse, ProfileUpdate,
 )
+from backend.schemas.role_application import PendingRoleApplication
 from backend.schemas.response import ApiResponse
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -19,7 +21,6 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/register", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
 async def register(payload: UserRegister, db: AsyncSession = Depends(get_db)) -> ApiResponse:
-    # Check for existing email or username
     existing = await db.execute(
         select(User).where(
             (User.email == payload.email) | (User.username == payload.username)
@@ -38,21 +39,44 @@ async def register(payload: UserRegister, db: AsyncSession = Depends(get_db)) ->
         hashed_password=get_password_hash(payload.password),
     )
     db.add(user)
-    await db.flush()  # get user.id before creating namespace
+    await db.flush()  # 获取 user.id，但不提交
 
-    namespace = Namespace(
-        slug=payload.username,
-        display_name=payload.username,
-        owner_id=user.id,
-    )
-    db.add(namespace)
-    await db.flush()
+    pending_app: RoleApplication | None = None
 
-    # 自动将创建者加为管理员成员
-    db.add(NamespaceMember(namespace_id=namespace.id, user_id=user.id, role="admin"))
+    # 申请主管：创建 pending role application
+    if payload.requested_role == 1:
+        pending_app = RoleApplication(
+            user_id=user.id,
+            requested_role=1,
+            status="pending",
+        )
+        db.add(pending_app)
+
+    # 普通用户选择部门：创建 pending DepartmentMember
+    elif payload.department_id is not None:
+        dept_result = await db.execute(
+            select(Department).where(Department.id == payload.department_id)
+        )
+        if dept_result.scalar_one_or_none():
+            db.add(DepartmentMember(
+                department_id=payload.department_id,
+                user_id=user.id,
+                role="member",
+                status="pending",
+            ))
+
     await db.commit()
     await db.refresh(user)
-    return ApiResponse(data=UserResponse.model_validate(user).model_dump(), message="注册成功")
+
+    data = UserResponse.model_validate(user).model_dump()
+    if pending_app:
+        data["pending_role_application"] = PendingRoleApplication(
+            requested_role=pending_app.requested_role,
+            created_at=pending_app.created_at,
+        ).model_dump()
+
+    msg = "主管申请已提交，管理员审批通过后权限将自动升级" if payload.requested_role == 1 else "注册成功"
+    return ApiResponse(data=data, message=msg)
 
 
 @router.post("/login", response_model=ApiResponse)
@@ -77,25 +101,41 @@ async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)) -> ApiRe
 
 @router.get("/me", response_model=ApiResponse)
 async def me(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> ApiResponse:
+    from sqlalchemy.orm import selectinload
     data = UserResponse.model_validate(current_user).model_dump()
     data["role_label"] = User.ROLE_LABELS.get(current_user.role, "普通用户")
-    # 查询用户的所有部门成员关系
-    from sqlalchemy.orm import selectinload
+
+    # 查询用户的正式部门成员关系
     result = await db.execute(
-        select(NamespaceMember)
-        .where(NamespaceMember.user_id == current_user.id)
-        .options(selectinload(NamespaceMember.namespace))
+        select(DepartmentMember)
+        .where(DepartmentMember.user_id == current_user.id, DepartmentMember.status == "active")
+        .options(selectinload(DepartmentMember.department))
     )
     memberships = result.scalars().all()
-    data["namespaces"] = [
-        UserNamespaceBrief(
-            id=m.namespace.id,
-            slug=m.namespace.slug,
-            display_name=m.namespace.display_name,
+    data["departments"] = [
+        UserDepartmentBrief(
+            id=m.department.id,
+            slug=m.department.slug,
+            display_name=m.department.display_name,
             role=m.role,
         ).model_dump()
         for m in memberships
     ]
+
+    # 查询待审批的主管申请
+    app_result = await db.execute(
+        select(RoleApplication)
+        .where(RoleApplication.user_id == current_user.id, RoleApplication.status == "pending")
+        .order_by(RoleApplication.created_at.desc())
+        .limit(1)
+    )
+    pending_app = app_result.scalar_one_or_none()
+    if pending_app:
+        data["pending_role_application"] = PendingRoleApplication(
+            requested_role=pending_app.requested_role,
+            created_at=pending_app.created_at,
+        ).model_dump()
+
     return ApiResponse(data=data)
 
 

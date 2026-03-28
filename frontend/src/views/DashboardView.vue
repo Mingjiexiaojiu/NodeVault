@@ -118,7 +118,7 @@
             <span class="text-sm font-medium text-gray-900">{{ node.display_name || node.name }}</span>
           </div>
           <div class="flex items-center gap-3">
-            <span v-if="node.namespace_slug" class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium">{{ node.namespace_slug }}</span>
+            <span v-if="node.department_slug" class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-medium">{{ node.department_slug }}</span>
             <span v-if="node.owner_username" class="text-xs text-gray-400">{{ node.owner_username }}</span>
             <StatusBadge :status="node.status" />
             <span class="text-xs text-gray-300">{{ formatDate(node.created_at) }}</span>

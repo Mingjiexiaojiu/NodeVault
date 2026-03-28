@@ -110,7 +110,7 @@
             <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">所属部门</p>
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
-              {{ node.namespace_slug || '—' }}
+              {{ node.department_slug || '—' }}
             </span>
           </div>
           <div>
@@ -136,6 +136,34 @@
                 {{ tag }}
               </RouterLink>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 凭据绑定信息 -->
+      <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-5" style="box-shadow: 0 1px 3px rgba(0,0,0,0.04)">
+        <div class="flex items-center gap-3 px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-white">
+          <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-sm font-semibold text-gray-900">服务凭据</h2>
+            <p class="text-xs text-gray-500 mt-0.5">调用此 Node 时使用的鉴权凭据</p>
+          </div>
+        </div>
+        <div class="px-6 py-4">
+          <div v-if="node.credential_id" class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+              已绑定凭据
+            </span>
+            <RouterLink to="/credentials" class="text-xs text-indigo-500 hover:text-indigo-700 transition-colors">管理凭据 →</RouterLink>
+          </div>
+          <div v-else class="flex items-center gap-2 text-sm text-gray-400">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            无（将按 base_url 前缀自动匹配凭据）
           </div>
         </div>
       </div>
@@ -575,7 +603,7 @@ const actionError = ref('')
 const isOwner = computed(() => {
   if (!node.value || !authStore.user) return false
   // 用户所属部门列表中包含节点的部门即有写权限
-  return authStore.user.namespaces?.some(ns => ns.id === node.value!.namespace_id) ?? false
+  return authStore.user.departments?.some(ns => ns.id === node.value!.department_id) ?? false
 })
 const confirmDeleteNode = ref(false)
 const deletingNodeLoading = ref(false)

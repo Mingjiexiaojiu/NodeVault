@@ -13,7 +13,7 @@ class NodeResponse(BaseModel):
     category_id: uuid.UUID | None = None
     status: str
     visibility: str
-    namespace_id: uuid.UUID
+    department_id: uuid.UUID
     owner_id: uuid.UUID
     tags: list[str] = []
     created_at: datetime

@@ -131,8 +131,10 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getSkills, createSkill } from '@/api/skills'
 import type { SkillItem } from '@/api/skills'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 const skills = ref<SkillItem[]>([])
 const loading = ref(true)
@@ -161,20 +163,11 @@ async function handleCreate() {
     return
   }
 
-  // Get namespace_id from user's namespace (via first node or profile)
-  // We use the auth store's user namespace or request it
-  // For simplicity, we need the namespace_id — let's get it from the user's profile
-  let namespaceId: string | undefined
-  try {
-    const { listNodes } = await import('@/api/nodes')
-    const res = await listNodes({ mine: true, page_size: 1 })
-    namespaceId = res.data[0]?.namespace_id
-  } catch {
-    // ignore
-  }
+  // 从用户已加入的部门中取第一个
+  const departmentId = authStore.user?.departments?.[0]?.id
 
-  if (!namespaceId) {
-    createError.value = '获取部门 ID 失败，请先创建一个节点后再试'
+  if (!departmentId) {
+    createError.value = '获取部门 ID 失败，请先加入一个部门后再试'
     return
   }
 
@@ -184,7 +177,7 @@ async function handleCreate() {
       name: createForm.name,
       display_name: createForm.display_name || undefined,
       description: createForm.description || undefined,
-      namespace_id: namespaceId,
+      department_id: departmentId,
     })
     showCreate.value = false
     router.push(`/skills/${skill.id}`)

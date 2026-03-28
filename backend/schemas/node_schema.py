@@ -1,4 +1,4 @@
-﻿import re
+import re
 import uuid
 from typing import Any
 
@@ -26,6 +26,7 @@ class RuntimeConfig(BaseModel):
     method: HttpMethod | None = None
     headers: dict[str, str] | None = None
     auth: RuntimeAuthConfig | None = None
+    credential_id: uuid.UUID | None = None
 
 
 class RetryConfig(BaseModel):

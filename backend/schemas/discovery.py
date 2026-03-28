@@ -83,7 +83,7 @@ class BatchImportItem(BaseModel):
 
 
 class BatchImportRequest(BaseModel):
-    namespace_id: uuid.UUID
+    department_id: uuid.UUID
     credential_id: uuid.UUID | None = None
     base_url: str  # used to build full endpoint = base_url + item.endpoint
     items: list[BatchImportItem] = Field(..., min_length=1)

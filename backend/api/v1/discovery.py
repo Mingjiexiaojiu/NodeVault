@@ -19,7 +19,7 @@ from backend.core.probe import probe_spec, probe_with_auth, _parse_spec
 from backend.core.registry import NodeRegistry
 from backend.database.session import get_db
 from backend.models.discovery import DiscoverySession
-from backend.models.namespace import Namespace, NamespaceMember
+from backend.models.department import Department, DepartmentMember
 from backend.models.node import Node, NodeTag, NodeVersion
 from backend.models.user import User
 from backend.schemas.discovery import (
@@ -196,7 +196,7 @@ async def batch_import_nodes(
     try:
         nodes = await registry.batch_register(
             items=items,
-            namespace_id=body.namespace_id,
+            department_id=body.department_id,
             owner=user,
             credential_id=body.credential_id,
             source_path_map=source_path_map,

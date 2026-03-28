@@ -30,8 +30,8 @@ export interface AdminNodeListItem {
   id: string
   name: string
   display_name: string | null
-  namespace_id: string
-  namespace_slug: string | null
+  department_id: string
+  department_slug: string | null
   owner_id: string
   owner_username: string | null
   category_id: string
@@ -42,7 +42,7 @@ export interface AdminNodeListItem {
   created_at: string
 }
 
-export interface AdminNamespaceListItem {
+export interface AdminDepartmentListItem {
   id: string
   slug: string
   display_name: string | null
@@ -57,8 +57,8 @@ export interface AdminSkillListItem {
   id: string
   name: string
   display_name: string | null
-  namespace_id: string
-  namespace_slug: string | null
+  department_id: string
+  department_slug: string | null
   owner_id: string
   owner_username: string | null
   status: string
@@ -85,7 +85,7 @@ export interface TopNodeItem {
   id: string
   name: string
   display_name: string | null
-  namespace_slug: string | null
+  department_slug: string | null
   owner_username: string | null
   invocation_count: number
 }
@@ -139,7 +139,7 @@ export function deleteUser(userId: string) {
 // Global Resources
 // ─────────────────────────────────────────────
 
-export function listAllNodes(params?: { namespace_id?: string; status?: string; category_id?: string; page?: number; page_size?: number }) {
+export function listAllNodes(params?: { department_id?: string; status?: string; category_id?: string; page?: number; page_size?: number }) {
   return http.get<PagedResult<AdminNodeListItem>>('/admin/nodes', { params })
 }
 
@@ -147,8 +147,8 @@ export function updateNodeStatus(nodeId: string, status: string) {
   return http.patch(`/admin/nodes/${nodeId}/status`, { status })
 }
 
-export function listAllNamespaces(params?: { page?: number; page_size?: number }) {
-  return http.get<PagedResult<AdminNamespaceListItem>>('/admin/namespaces', { params })
+export function listAllDepartments(params?: { page?: number; page_size?: number }) {
+  return http.get<PagedResult<AdminDepartmentListItem>>('/admin/departments', { params })
 }
 
 export function listAllSkills(params?: { page?: number; page_size?: number }) {

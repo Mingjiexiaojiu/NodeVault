@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -33,6 +33,20 @@ def _node_to_response(node: Node) -> NodeResponse:
     cat_brief = None
     if node.category_rel:
         cat_brief = CategoryBrief(id=node.category_rel.id, display_name=node.category_rel.display_name)
+
+    # Extract credential_id from the default NodeVersion's runtime_config
+    credential_id = None
+    if node.versions:
+        default_ver = next((v for v in node.versions if v.is_default), None)
+        if default_ver and default_ver.runtime_config:
+            raw_id = default_ver.runtime_config.get("credential_id")
+            if raw_id:
+                try:
+                    import uuid as _uuid
+                    credential_id = _uuid.UUID(raw_id)
+                except (ValueError, AttributeError):
+                    pass
+
     return NodeResponse(
         id=node.id,
         name=node.name,
@@ -42,11 +56,12 @@ def _node_to_response(node: Node) -> NodeResponse:
         category=cat_brief,
         status=node.status,
         visibility=node.visibility,
-        namespace_id=node.namespace_id,
-        namespace_slug=node.namespace.slug if node.namespace else None,
+        department_id=node.department_id,
+        department_slug=node.department.slug if node.department else None,
         owner_id=node.owner_id,
         owner_username=node.owner.username if node.owner else None,
         tags=[t.tag for t in node.tags],
+        credential_id=credential_id,
         source_credential_id=node.source_credential_id,
         source_path=node.source_path,
         source_service_name=node.source_credential.name if node.source_credential else None,
@@ -68,7 +83,7 @@ async def register_node(
         if "duplicate" in str(exc).lower() or "unique" in str(exc).lower():
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Node name already exists in this namespace",
+                detail="Node name already exists in this department",
             )
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
 
@@ -82,7 +97,7 @@ async def register_node(
                 "description": node.description,
                 "category": node.category_rel.display_name if node.category_rel else "",
                 "status": node.status,
-                "namespace_id": str(node.namespace_id),
+                "department_id": str(node.department_id),
                 "invocation_count": node.invocation_count,
                 "tags": [t.tag for t in node.tags],
             }
@@ -101,11 +116,11 @@ async def batch_create_nodes(
 ):
     """Batch create multiple Nodes in a single atomic transaction.
 
-    Body: { namespace_id, base_url, credential_id?, items: [{name, endpoint, method, ...}] }
+    Body: { department_id, base_url, credential_id?, items: [{name, endpoint, method, ...}] }
     """
-    namespace_id = payload.get("namespace_id")
-    if not namespace_id:
-        raise HTTPException(status_code=400, detail="namespace_id required")
+    department_id = payload.get("department_id")
+    if not department_id:
+        raise HTTPException(status_code=400, detail="department_id required")
 
     items = payload.get("items", [])
     if not items:
@@ -115,7 +130,7 @@ async def batch_create_nodes(
     try:
         nodes = await registry.batch_register(
             items=[{**it, "base_url": payload.get("base_url", "")} for it in items],
-            namespace_id=uuid.UUID(namespace_id),
+            department_id=uuid.UUID(department_id),
             owner=current_user,
             credential_id=uuid.UUID(payload["credential_id"]) if payload.get("credential_id") else None,
         )
@@ -183,8 +198,12 @@ async def update_node(
 ) -> NodeResponse:
     registry = NodeRegistry(db)
     try:
+        # Use model_fields_set to detect explicitly-passed fields (including null credential_id for unbind)
+        update_data = payload.model_dump(exclude_none=True)
+        if "credential_id" in payload.model_fields_set:
+            update_data["credential_id"] = payload.credential_id
         node = await registry.update_node(
-            node_id, payload.model_dump(exclude_none=True), owner=current_user
+            node_id, update_data, owner=current_user
         )
     except PermissionError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc))
@@ -201,7 +220,7 @@ async def update_node(
                 "description": node.description,
                 "category": node.category_rel.display_name if node.category_rel else "",
                 "status": node.status,
-                "namespace_id": str(node.namespace_id),
+                "department_id": str(node.department_id),
                 "invocation_count": node.invocation_count,
                 "tags": [t.tag for t in node.tags],
             }

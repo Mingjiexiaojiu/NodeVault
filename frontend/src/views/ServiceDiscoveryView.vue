@@ -574,8 +574,8 @@ const showDuplicateModal = ref(false)
 const duplicateInfo = ref<{ existing_sessions: { id: string; base_url: string; status: string; created_at: string }[]; existing_node_count: number } | null>(null)
 
 // --- Computed ---
-const namespaceId = computed(() => auth.user?.namespaces?.[0]?.id ?? '')
-const namespaceName = computed(() => auth.user?.namespaces?.[0]?.display_name || auth.user?.namespaces?.[0]?.slug || '默认')
+const namespaceId = computed(() => auth.user?.departments?.[0]?.id ?? '')
+const namespaceName = computed(() => auth.user?.departments?.[0]?.display_name || auth.user?.departments?.[0]?.slug || '默认')
 
 const selectedCount = computed(() => probeDrafts.value.filter(d => d.selected && !importedPaths.value.has(d.endpoint)).length)
 const allSelected = computed(() => probeDrafts.value.length > 0 && probeDrafts.value.every(d => importedPaths.value.has(d.endpoint) || d.selected))
@@ -824,7 +824,7 @@ async function handleImport() {
 
   try {
     const res = await batchImport({
-      namespace_id: namespaceId.value,
+      department_id: namespaceId.value,
       base_url: probeBaseUrl.value,
       credential_id: importConfig.credentialId || undefined,
       visibility: importConfig.visibility,

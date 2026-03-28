@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 
 from sqlalchemy import (
@@ -26,8 +26,8 @@ class Node(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
-    namespace_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("namespaces.id", ondelete="CASCADE"), nullable=False
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("departments.id", ondelete="CASCADE"), nullable=False
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -62,8 +62,8 @@ class Node(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    namespace: Mapped["Namespace"] = relationship(  # noqa: F821
-        "Namespace", back_populates="nodes"
+    department: Mapped["Department"] = relationship(  # noqa: F821
+        "Department", back_populates="nodes"
     )
     owner: Mapped["User"] = relationship(  # noqa: F821
         "User", foreign_keys=[owner_id], lazy="joined",
@@ -91,7 +91,7 @@ class Node(Base):
     )
 
     __table_args__ = (
-        UniqueConstraint("name", "namespace_id", name="uq_node_name_namespace"),
+        UniqueConstraint("name", "department_id", name="uq_node_name_department"),
     )
 
 

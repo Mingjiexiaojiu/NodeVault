@@ -10,9 +10,11 @@ export interface RegisterPayload {
   username: string
   display_name: string
   password: string
+  requested_role?: number
+  department_id?: string
 }
 
-export interface UserNamespaceBrief {
+export interface UserDepartmentBrief {
   id: string
   slug: string
   display_name: string | null
@@ -29,10 +31,10 @@ export interface UserInfo {
   avatar_url: string | null
   bio: string | null
   phone: string | null
-  department: string | null
   title: string | null
   created_at: string
-  namespaces: UserNamespaceBrief[]
+  departments: UserDepartmentBrief[]
+  pending_role_application?: { requested_role: number; created_at: string } | null
 }
 
 export interface ProfilePayload {
@@ -40,7 +42,6 @@ export interface ProfilePayload {
   avatar_url?: string
   bio?: string
   phone?: string
-  department?: string
   title?: string
 }
 

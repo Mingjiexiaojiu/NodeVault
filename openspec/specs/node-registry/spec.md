@@ -1,15 +1,14 @@
-## ADDED Requirements
-
+## Requirements
 ### Requirement: 注册 Node
-系统 SHALL 提供 `POST /api/v1/nodes` 端点（需认证），接受 `NodeCreate` 请求体，在调用者的默认 Namespace 下创建 Node 记录和 v1.0.0 NodeVersion 记录。Node `name` 在同一 Namespace 内 SHALL 唯一。请求体 SHALL 包含必填字段 `category_id`（UUID，指向 categories 表）。
+系统 SHALL 提供 `POST /api/v1/nodes` 端点（需认证），接受 `NodeCreate` 请求体，在调用者指定的 `department_id` 所对应的 Department 下创建 Node 记录及 v1.0.0 NodeVersion 记录。Node `name` 在同一 Department 下 SHALL 唯一。请求体 SHALL 包含必填字段 `category_id`（UUID，关联 categories 表）和 `department_id`（UUID，关联 departments 表）。
 
 #### Scenario: 注册 Node 成功
-- **WHEN** 已认证用户提供合法的 NodeCreate 请求体（name/category_id/input_schema/output_schema/runtime 均有效）
-- **THEN** 系统 SHALL 创建 Node 和 NodeVersion 记录，返回 201 和 NodeResponse（含 id/name/category_id/category_name/status/版本号）
+- **WHEN** 已认证用户提供合法的 NodeCreate 请求体（含 name/category_id/department_id/input_schema/output_schema/runtime 等）
+- **THEN** 系统 SHALL 创建 Node 和 NodeVersion 记录，返回 201 和 NodeResponse（含 id/name/category_id/category_name/department_id/status/版本号）
 
-#### Scenario: 同命名空间内 name 重复
-- **WHEN** 同一用户尝试注册与已有 Node 同名的新 Node
-- **THEN** 系统 SHALL 返回 409，提示名称在该命名空间已存在
+#### Scenario: 同部门内 name 重复
+- **WHEN** 同一用户尝试注册与已有 Node 同名的新 Node（同 department_id）
+- **THEN** 系统 SHALL 返回 409，提示名称在该部门已存在
 
 #### Scenario: 字段校验复用 NodeSchemaBase 规则
 - **WHEN** 提供不符合 snake_case 的 name 或不符合 SemVer 的 version
@@ -22,29 +21,19 @@
 ---
 
 ### Requirement: 查询 Node 列表
-系统 SHALL 提供 `GET /api/v1/nodes` 端点（需认证），返回当前用户有权访问的 Node 列表，支持按 `category_id`、`status`、`tag`、`source_credential_id` 过滤，支持 `page` / `page_size` 分页（默认 page=1，page_size=20，最大 100）。
+系统 SHALL 提供 `GET /api/v1/nodes` 端点（需认证），返回当前用户有权访问的 Node 列表，支持 `department_id`（替代 `namespace_id`）、`category_id`、`status`、`tag`、`source_credential_id` 过滤，支持 `page` / `page_size` 分页（默认 page=1，page_size=20，最大 100）。
 
 #### Scenario: 无过滤条件查询
 - **WHEN** 不携带任何查询参数调用 GET /api/v1/nodes
-- **THEN** 系统 SHALL 返回 200 和当前用户命名空间内的 Node 列表（已归档节点默认不返回）
+- **THEN** 系统 SHALL 返回 200 和当前用户当前部门内的 Node 列表（已归档节点默认不返回）
 
-#### Scenario: 按 type 过滤
-- **WHEN** 携带 `?type=nlp` 查询参数
-- **THEN** 系统 SHALL 只返回 type 为 nlp 的 Node
+#### Scenario: 按 department_id 过滤
+- **WHEN** 携带 `?department_id=<uuid>` 查询参数
+- **THEN** 系统 SHALL 只返回属于该 department 的 Node
 
 #### Scenario: 按 tag 过滤
 - **WHEN** 携带 `?tag=data` 查询参数
 - **THEN** 系统 SHALL 只返回关联该 tag 的 Node
-
-#### Scenario: 按 source_credential_id 过滤
-- **WHEN** 携带 `?source_credential_id=<uuid>` 查询参数
-- **THEN** 系统 SHALL 只返回来自该凭证的 Node
-
-#### Scenario: 分页
-- **WHEN** 携带 `?page=2&page_size=5`
-- **THEN** 系统 SHALL 返回第 6-10 条记录
-
----
 
 ### Requirement: 获取 Node 详情
 系统 SHALL 提供 `GET /api/v1/nodes/{node_id}` 端点（需认证），返回指定 Node 的完整信息，包含当前默认版本的 input_schema/output_schema/runtime_config。
@@ -149,7 +138,6 @@ The system SHALL provide `POST /api/v1/nodes/batch` endpoint that accepts an arr
 - **WHEN** any Node in the batch fails validation
 - **THEN** the system SHALL rollback the entire transaction (no partial creates)
 
-
 ---
 
 ## Changes from superadmin-console
@@ -157,18 +145,16 @@ The system SHALL provide `POST /api/v1/nodes/batch` endpoint that accepts an arr
 ## MODIFIED Requirements
 
 ### Requirement: Node visibility bypass for superadmin
-全局节点查询（`GET /api/v1/admin/nodes`）SHALL 忽略节点�?visibility 设置，返回所有节点，包括 private 节点。现有的 `GET /api/v1/nodes` 端点行为不变（仍�?namespace �?visibility 隔离）�?
+全局节点查询（`GET /api/v1/admin/nodes`）SHALL 忽略节点�?visibility 设置，返回所有节点，包括 private 节点。现有的 `GET /api/v1/nodes` 端点行为不变（仍�?namespace �?visibility 隔离）�?
 
 #### Scenario: Superadmin sees private nodes in admin view
 - **WHEN** 超管请求 `GET /api/v1/admin/nodes`
-- **THEN** 系统返回包含 visibility=private 的节�?
+- **THEN** 系统返回包含 visibility=private 的节�?
 
 #### Scenario: Regular user still cannot see others' private nodes
-- **WHEN** role=2 的用户请�?`GET /api/v1/nodes`
+- **WHEN** role=2 的用户请�?`GET /api/v1/nodes`
 - **THEN** 系统仅返回该用户 namespace 内的节点或公开节点（行为不变）
 
-
-
 ---
 
 ## Changes from superadmin-console
@@ -176,18 +162,16 @@ The system SHALL provide `POST /api/v1/nodes/batch` endpoint that accepts an arr
 ## MODIFIED Requirements
 
 ### Requirement: Node visibility bypass for superadmin
-全局节点查询（`GET /api/v1/admin/nodes`）SHALL 忽略节点�?visibility 设置，返回所有节点，包括 private 节点。现有的 `GET /api/v1/nodes` 端点行为不变（仍�?namespace �?visibility 隔离）�?
+全局节点查询（`GET /api/v1/admin/nodes`）SHALL 忽略节点�?visibility 设置，返回所有节点，包括 private 节点。现有的 `GET /api/v1/nodes` 端点行为不变（仍�?namespace �?visibility 隔离）�?
 
 #### Scenario: Superadmin sees private nodes in admin view
 - **WHEN** 超管请求 `GET /api/v1/admin/nodes`
-- **THEN** 系统返回包含 visibility=private 的节�?
+- **THEN** 系统返回包含 visibility=private 的节�?
 
 #### Scenario: Regular user still cannot see others' private nodes
-- **WHEN** role=2 的用户请�?`GET /api/v1/nodes`
+- **WHEN** role=2 的用户请�?`GET /api/v1/nodes`
 - **THEN** 系统仅返回该用户 namespace 内的节点或公开节点（行为不变）
 
-
-
 ---
 
 ## Changes from superadmin-console
@@ -195,13 +179,13 @@ The system SHALL provide `POST /api/v1/nodes/batch` endpoint that accepts an arr
 ## MODIFIED Requirements
 
 ### Requirement: Node visibility bypass for superadmin
-全局节点查询（`GET /api/v1/admin/nodes`）SHALL 忽略节点�?visibility 设置，返回所有节点，包括 private 节点。现有的 `GET /api/v1/nodes` 端点行为不变（仍�?namespace �?visibility 隔离）�?
+全局节点查询（`GET /api/v1/admin/nodes`）SHALL 忽略节点�?visibility 设置，返回所有节点，包括 private 节点。现有的 `GET /api/v1/nodes` 端点行为不变（仍�?namespace �?visibility 隔离）�?
 
 #### Scenario: Superadmin sees private nodes in admin view
 - **WHEN** 超管请求 `GET /api/v1/admin/nodes`
-- **THEN** 系统返回包含 visibility=private 的节�?
+- **THEN** 系统返回包含 visibility=private 的节�?
 
 #### Scenario: Regular user still cannot see others' private nodes
-- **WHEN** role=2 的用户请�?`GET /api/v1/nodes`
+- **WHEN** role=2 的用户请�?`GET /api/v1/nodes`
 - **THEN** 系统仅返回该用户 namespace 内的节点或公开节点（行为不变）
 

@@ -38,6 +38,23 @@ export interface CredentialResponse {
 
 // ---------- API ----------
 
+export interface CredentialUpdate {
+  name?: string
+  token_ttl?: number | null
+  // Provide new value to rotate; omit to keep existing
+  password?: string
+  static_token?: string
+  api_key_value?: string
+}
+
+export interface CredentialTestResult {
+  success: boolean
+  message: string
+  latency_ms: number | null
+}
+
+// ---------- API ----------
+
 export const createCredential = (payload: CredentialCreate) =>
   http.post<CredentialResponse>('/credentials', payload)
 
@@ -46,6 +63,12 @@ export const listCredentials = () =>
 
 export const getCredential = (id: string) =>
   http.get<CredentialResponse>(`/credentials/${id}`)
+
+export const updateCredential = (id: string, payload: CredentialUpdate) =>
+  http.patch<CredentialResponse>(`/credentials/${id}`, payload)
+
+export const testCredential = (id: string) =>
+  http.post<CredentialTestResult>(`/credentials/${id}/test`)
 
 export const deleteCredential = (id: string) =>
   http.delete(`/credentials/${id}`)

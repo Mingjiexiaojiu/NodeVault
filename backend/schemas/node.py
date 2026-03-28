@@ -1,4 +1,4 @@
-﻿import uuid
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -10,7 +10,10 @@ from backend.schemas.node_schema import NodeSchemaBase
 
 class NodeCreate(NodeSchemaBase):
     """Node 注册请求体，复用 NodeSchemaBase 的全部校验规则"""
-    pass
+    department_id: uuid.UUID
+
+
+_UNSET = object()
 
 
 class NodeUpdate(BaseModel):
@@ -19,6 +22,8 @@ class NodeUpdate(BaseModel):
     category_id: uuid.UUID | None = None
     visibility: NodeVisibility | None = None
     status: NodeStatus | None = None
+    # credential_id: pass a UUID to bind, pass null to unbind, omit to leave unchanged
+    credential_id: uuid.UUID | None = None
 
 
 class CategoryBrief(BaseModel):
@@ -37,11 +42,12 @@ class NodeResponse(BaseModel):
     category: CategoryBrief | None = None
     status: NodeStatus
     visibility: NodeVisibility
-    namespace_id: uuid.UUID
-    namespace_slug: str | None = None
+    department_id: uuid.UUID
+    department_slug: str | None = None
     owner_id: uuid.UUID
     owner_username: str | None = None
     tags: list[str]
+    credential_id: uuid.UUID | None = None
     source_credential_id: uuid.UUID | None = None
     source_path: str | None = None
     source_service_name: str | None = None

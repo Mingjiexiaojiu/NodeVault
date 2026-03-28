@@ -17,8 +17,8 @@ class Skill(Base):
     name: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     display_name: Mapped[str | None] = mapped_column(String(256), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    namespace_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("namespaces.id", ondelete="CASCADE"), nullable=False
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("departments.id", ondelete="CASCADE"), nullable=False
     )
     owner_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
@@ -40,8 +40,12 @@ class Skill(Base):
         order_by="SkillVersion.created_at.desc()"
     )
 
+    department: Mapped["Department"] = relationship(  # noqa: F821
+        "Department", back_populates="skills"
+    )
+
     __table_args__ = (
-        UniqueConstraint("name", "namespace_id", name="uq_skill_name_namespace"),
+        UniqueConstraint("name", "department_id", name="uq_skill_name_department"),
     )
 
 

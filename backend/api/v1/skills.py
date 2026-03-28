@@ -72,7 +72,7 @@ def _skill_to_response(skill: Skill, node_count: int = 0, latest_version: str | 
         name=skill.name,
         display_name=skill.display_name,
         description=skill.description,
-        namespace_id=skill.namespace_id,
+        department_id=skill.department_id,
         owner_id=skill.owner_id,
         status=skill.status,
         is_system=skill.is_system,
@@ -106,7 +106,7 @@ def _skill_to_detail(skill: Skill) -> SkillDetailResponse:
         name=skill.name,
         display_name=skill.display_name,
         description=skill.description,
-        namespace_id=skill.namespace_id,
+        department_id=skill.department_id,
         owner_id=skill.owner_id,
         status=skill.status,
         is_system=skill.is_system,
@@ -139,14 +139,14 @@ def _version_to_response(ver: SkillVersion) -> SkillVersionResponse:
 
 @router.get("", response_model=ApiResponse)
 async def list_skills(
-    namespace_id: uuid.UUID | None = Query(None),
+    department_id: uuid.UUID | None = Query(None),
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ApiResponse:
     registry = SkillRegistry(db)
-    items = await registry.list_skills(namespace_id=namespace_id, user=current_user, skip=skip, limit=limit)
+    items = await registry.list_skills(department_id=department_id, user=current_user, skip=skip, limit=limit)
     responses = [
         _skill_to_response(skill, node_count=node_count, latest_version=latest_version)
         for skill, node_count, latest_version in items

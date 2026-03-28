@@ -61,13 +61,13 @@ const route = useRoute()
 const auth = useAuthStore()
 
 const navItems = [
-  { to: '/admin/analytics',  label: '平台统计' },
-  { to: '/admin/users',      label: '用户管理' },
-  { to: '/admin/nodes',      label: '全局节点' },
-  { to: '/admin/categories', label: '分类管理' },
-  { to: '/admin/namespaces', label: '部门管理' },
-  { to: '/admin/auth',       label: '授权管理' },
-  { to: '/admin/settings',   label: '系统设置' },
+  { to: '/admin/users',        label: '用户管理' },
+  { to: '/admin/nodes',        label: '全局节点' },
+  { to: '/admin/categories',   label: '分类管理' },
+  { to: '/admin/analytics',    label: '平台统计' },
+  { to: '/admin/namespaces',   label: '部门管理' },
+  { to: '/admin/applications', label: '申请管理' },
+  { to: '/admin/settings',     label: '系统设置' },
 ]
 
 function isActive(path: string) {

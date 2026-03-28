@@ -34,7 +34,7 @@
               <div class="font-medium text-gray-900">{{ node.display_name || node.name }}</div>
               <div class="text-xs text-gray-400 font-mono">{{ node.name }}</div>
             </td>
-            <td class="px-4 py-3.5 text-gray-600">{{ node.namespace_slug || '—' }}</td>
+            <td class="px-4 py-3.5 text-gray-600">{{ node.department_slug || '—' }}</td>
             <td class="px-4 py-3.5 text-gray-600">{{ node.owner_username || '—' }}</td>
             <td class="px-4 py-3.5">
               <span

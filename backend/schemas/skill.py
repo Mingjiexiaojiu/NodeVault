@@ -9,7 +9,7 @@ class SkillCreate(BaseModel):
     name: str
     display_name: str | None = None
     description: str | None = None
-    namespace_id: uuid.UUID
+    department_id: uuid.UUID
 
     @field_validator("name")
     @classmethod
@@ -33,7 +33,7 @@ class SkillResponse(BaseModel):
     name: str
     display_name: str | None
     description: str | None
-    namespace_id: uuid.UUID
+    department_id: uuid.UUID
     owner_id: uuid.UUID
     status: str
     is_system: bool

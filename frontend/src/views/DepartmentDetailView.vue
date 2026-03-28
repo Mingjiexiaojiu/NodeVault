@@ -230,7 +230,7 @@ const tabs = computed(() => [
 ])
 
 const myRole = computed(() => {
-  return authStore.user?.namespaces?.find(ns => ns.id === deptId)?.role ?? null
+  return authStore.user?.departments?.find(ns => ns.id === deptId)?.role ?? null
 })
 const isAdmin = computed(() => myRole.value === 'admin')
 

@@ -27,7 +27,7 @@ class NodeSearchIndex:
             ["name", "display_name", "description", "tags", "category"]
         )
         index.update_filterable_attributes(
-            ["category", "status", "namespace_id", "tags"]
+            ["category", "status", "department_id", "tags"]
         )
         index.update_sortable_attributes(
             ["created_at", "updated_at", "invocation_count"]
@@ -87,8 +87,8 @@ class NodeSearchIndex:
             parts.append(f'category = "{filters["category"]}"')
         if filters.get("status"):
             parts.append(f'status = "{filters["status"]}"')
-        if filters.get("namespace_id"):
-            parts.append(f'namespace_id = "{filters["namespace_id"]}"')
+        if filters.get("department_id"):
+            parts.append(f'department_id = "{filters["department_id"]}"')
         if filters.get("tags"):
             tags_str = ", ".join(f'"{t}"' for t in filters["tags"])
             parts.append(f"tags IN [{tags_str}]")

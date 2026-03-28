@@ -13,14 +13,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.auth.deps import get_current_user, get_superadmin_user
 from backend.database.session import get_db
-from backend.models.namespace import Namespace, NamespaceMember
+from backend.models.department import Department, DepartmentMember
 from backend.models.node import Node, NodeInvocationLog
 from backend.models.skill import Skill
 from backend.models.system_setting import SystemSetting
 from backend.models.user import User
 from backend.schemas.admin import (
     ALLOWED_SETTING_KEYS,
-    AdminNamespaceListItem,
+    AdminDepartmentListItem,
     AdminNodeListItem,
     AdminNodeStatusUpdate,
     AdminSkillListItem,
@@ -110,7 +110,7 @@ async def get_user_detail(
     if user is None:
         raise HTTPException(status_code=404, detail="用户不存在")
 
-    ns_count = (await db.execute(select(func.count()).where(Namespace.owner_id == user_id))).scalar_one()
+    dept_count = (await db.execute(select(func.count()).where(Department.owner_id == user_id))).scalar_one()
     node_count = (await db.execute(select(func.count()).where(Node.owner_id == user_id))).scalar_one()
     skill_count = (await db.execute(select(func.count()).where(Skill.owner_id == user_id))).scalar_one()
 
@@ -126,9 +126,8 @@ async def get_user_detail(
         avatar_url=user.avatar_url,
         bio=user.bio,
         phone=user.phone,
-        department=user.department,
         title=user.title,
-        namespace_count=ns_count,
+        department_count=dept_count,
         node_count=node_count,
         skill_count=skill_count,
     )
@@ -206,7 +205,7 @@ async def delete_user(
 
 @router.get("/nodes", response_model=ApiResponse)
 async def list_all_nodes(
-    namespace_id: uuid.UUID | None = Query(None),
+    department_id: uuid.UUID | None = Query(None),
     status: str | None = Query(None),
     category_id: uuid.UUID | None = Query(None),
     page: int = Query(1, ge=1),
@@ -215,8 +214,8 @@ async def list_all_nodes(
     _admin: User = Depends(get_superadmin_user),
 ) -> ApiResponse:
     stmt = select(Node)
-    if namespace_id:
-        stmt = stmt.where(Node.namespace_id == namespace_id)
+    if department_id:
+        stmt = stmt.where(Node.department_id == department_id)
     if status:
         stmt = stmt.where(Node.status == status)
     if category_id:
@@ -229,15 +228,15 @@ async def list_all_nodes(
     result = await db.execute(stmt)
     nodes = result.scalars().all()
 
-    # gather namespace slugs and owner usernames in bulk
-    ns_ids = list({n.namespace_id for n in nodes})
+    # gather department slugs and owner usernames in bulk
+    dept_ids = list({n.department_id for n in nodes})
     owner_ids = list({n.owner_id for n in nodes})
-    ns_map: dict[uuid.UUID, str] = {}
+    dept_map: dict[uuid.UUID, str] = {}
     owner_map: dict[uuid.UUID, str] = {}
 
-    if ns_ids:
-        ns_result = await db.execute(select(Namespace.id, Namespace.slug).where(Namespace.id.in_(ns_ids)))
-        ns_map = {row.id: row.slug for row in ns_result}
+    if dept_ids:
+        dept_result = await db.execute(select(Department.id, Department.slug).where(Department.id.in_(dept_ids)))
+        dept_map = {row.id: row.slug for row in dept_result}
     if owner_ids:
         u_result = await db.execute(select(User.id, User.username).where(User.id.in_(owner_ids)))
         owner_map = {row.id: row.username for row in u_result}
@@ -247,8 +246,8 @@ async def list_all_nodes(
             id=n.id,
             name=n.name,
             display_name=n.display_name,
-            namespace_id=n.namespace_id,
-            namespace_slug=ns_map.get(n.namespace_id),
+            department_id=n.department_id,
+            department_slug=dept_map.get(n.department_id),
             owner_id=n.owner_id,
             owner_username=owner_map.get(n.owner_id),
             category_id=n.category_id,
@@ -280,58 +279,58 @@ async def admin_update_node_status(
     return ApiResponse(data={"id": str(node_id), "status": payload.status}, message="节点状态已更新")
 
 
-@router.get("/namespaces", response_model=ApiResponse)
-async def list_all_namespaces(
+@router.get("/departments", response_model=ApiResponse)
+async def list_all_departments(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(get_superadmin_user),
 ) -> ApiResponse:
-    stmt = select(Namespace).order_by(Namespace.created_at.desc())
+    stmt = select(Department).order_by(Department.created_at.desc())
     count_result = await db.execute(select(func.count()).select_from(stmt.subquery()))
     total = count_result.scalar_one()
 
     stmt = stmt.offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(stmt)
-    namespaces = result.scalars().all()
+    departments = result.scalars().all()
 
-    ns_ids = [ns.id for ns in namespaces]
-    owner_ids = list({ns.owner_id for ns in namespaces})
+    dept_ids = [d.id for d in departments]
+    owner_ids = list({d.owner_id for d in departments})
     member_map: dict[uuid.UUID, int] = {}
     node_map: dict[uuid.UUID, int] = {}
     owner_map: dict[uuid.UUID, str] = {}
 
-    if ns_ids:
+    if dept_ids:
         m_result = await db.execute(
-            select(NamespaceMember.namespace_id, func.count().label("cnt"))
-            .where(NamespaceMember.namespace_id.in_(ns_ids))
-            .group_by(NamespaceMember.namespace_id)
+            select(DepartmentMember.department_id, func.count().label("cnt"))
+            .where(DepartmentMember.department_id.in_(dept_ids))
+            .group_by(DepartmentMember.department_id)
         )
-        member_map = {row.namespace_id: row.cnt for row in m_result}
+        member_map = {row.department_id: row.cnt for row in m_result}
 
         n_result = await db.execute(
-            select(Node.namespace_id, func.count().label("cnt"))
-            .where(Node.namespace_id.in_(ns_ids))
-            .group_by(Node.namespace_id)
+            select(Node.department_id, func.count().label("cnt"))
+            .where(Node.department_id.in_(dept_ids))
+            .group_by(Node.department_id)
         )
-        node_map = {row.namespace_id: row.cnt for row in n_result}
+        node_map = {row.department_id: row.cnt for row in n_result}
 
     if owner_ids:
         u_result = await db.execute(select(User.id, User.username).where(User.id.in_(owner_ids)))
         owner_map = {row.id: row.username for row in u_result}
 
     items = [
-        AdminNamespaceListItem(
-            id=ns.id,
-            slug=ns.slug,
-            display_name=ns.display_name,
-            owner_id=ns.owner_id,
-            owner_username=owner_map.get(ns.owner_id),
-            member_count=member_map.get(ns.id, 0),
-            node_count=node_map.get(ns.id, 0),
-            created_at=ns.created_at,
+        AdminDepartmentListItem(
+            id=d.id,
+            slug=d.slug,
+            display_name=d.display_name,
+            owner_id=d.owner_id,
+            owner_username=owner_map.get(d.owner_id),
+            member_count=member_map.get(d.id, 0),
+            node_count=node_map.get(d.id, 0),
+            created_at=d.created_at,
         )
-        for ns in namespaces
+        for d in departments
     ]
     return ApiResponse(data={"items": [i.model_dump() for i in items], "total": total, "page": page, "page_size": page_size})
 
@@ -351,14 +350,14 @@ async def list_all_skills(
     result = await db.execute(stmt)
     skills = result.scalars().all()
 
-    ns_ids = list({s.namespace_id for s in skills})
+    dept_ids = list({s.department_id for s in skills})
     owner_ids = list({s.owner_id for s in skills})
-    ns_map: dict[uuid.UUID, str] = {}
+    dept_map: dict[uuid.UUID, str] = {}
     owner_map: dict[uuid.UUID, str] = {}
 
-    if ns_ids:
-        ns_result = await db.execute(select(Namespace.id, Namespace.slug).where(Namespace.id.in_(ns_ids)))
-        ns_map = {row.id: row.slug for row in ns_result}
+    if dept_ids:
+        dept_result = await db.execute(select(Department.id, Department.slug).where(Department.id.in_(dept_ids)))
+        dept_map = {row.id: row.slug for row in dept_result}
     if owner_ids:
         u_result = await db.execute(select(User.id, User.username).where(User.id.in_(owner_ids)))
         owner_map = {row.id: row.username for row in u_result}
@@ -368,8 +367,8 @@ async def list_all_skills(
             id=s.id,
             name=s.name,
             display_name=s.display_name,
-            namespace_id=s.namespace_id,
-            namespace_slug=ns_map.get(s.namespace_id),
+            department_id=s.department_id,
+            department_slug=dept_map.get(s.department_id),
             owner_id=s.owner_id,
             owner_username=owner_map.get(s.owner_id),
             status=s.status,
@@ -462,13 +461,13 @@ async def analytics_top_nodes(
     )
     nodes = result.scalars().all()
 
-    ns_ids = list({n.namespace_id for n in nodes})
+    dept_ids = list({n.department_id for n in nodes})
     owner_ids = list({n.owner_id for n in nodes})
-    ns_map: dict[uuid.UUID, str] = {}
+    dept_map: dict[uuid.UUID, str] = {}
     owner_map: dict[uuid.UUID, str] = {}
-    if ns_ids:
-        ns_result = await db.execute(select(Namespace.id, Namespace.slug).where(Namespace.id.in_(ns_ids)))
-        ns_map = {row.id: row.slug for row in ns_result}
+    if dept_ids:
+        dept_result = await db.execute(select(Department.id, Department.slug).where(Department.id.in_(dept_ids)))
+        dept_map = {row.id: row.slug for row in dept_result}
     if owner_ids:
         u_result = await db.execute(select(User.id, User.username).where(User.id.in_(owner_ids)))
         owner_map = {row.id: row.username for row in u_result}
@@ -478,7 +477,7 @@ async def analytics_top_nodes(
             id=n.id,
             name=n.name,
             display_name=n.display_name,
-            namespace_slug=ns_map.get(n.namespace_id),
+            department_slug=dept_map.get(n.department_id),
             owner_username=owner_map.get(n.owner_id),
             invocation_count=n.invocation_count,
         )
