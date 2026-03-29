@@ -157,23 +157,23 @@ const StatusBadge = {
     </span>
   `,
   computed: {
-    cls() {
+    cls(this: { status: string }): string {
       const map: Record<string, string> = {
         probing: 'bg-gray-100 text-gray-600',
         found: 'bg-blue-100 text-blue-700',
         failed: 'bg-red-100 text-red-700',
         completed: 'bg-green-100 text-green-700',
       }
-      return map[this.status as string] ?? 'bg-gray-100 text-gray-600'
+      return map[this.status] ?? 'bg-gray-100 text-gray-600'
     },
-    label() {
+    label(this: { status: string }): string {
       const map: Record<string, string> = {
         probing: '探测中',
         found: '已发现',
         failed: '失败',
         completed: '已完成',
       }
-      return map[this.status as string] ?? this.status
+      return map[this.status] ?? this.status
     },
   },
 }

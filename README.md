@@ -66,35 +66,83 @@ OCR 识别服务  ──┘  统一注册入口   └── 自动化工作流
 
 ## 快速体验
 
-### 方式一：使用网页界面（推荐新用户）
+### 方式一：Docker 部署（推荐生产 / 服务器）
 
-1. 打开浏览器，访问 `http://localhost:5173`（本地部署后）
-2. 注册账号，选择或加入一个部门
-3. 进入「节点」页面，浏览已有的服务能力
-4. 点击「发现」，导入你自己的服务
+确保服务器上已有 PostgreSQL、Redis、MeiliSearch。
 
-→ 详细操作步骤请查看 **[用户使用手册](USAGE.md)**
-
-### 方式二：本地启动
+**第一步：在本地构建前端**
 
 ```bash
-# 1. 启动数据库等基础设施
-docker compose -f deploy/docker-compose.dev.yml up -d
+cd frontend && npm install && npm run build && cd ..
+```
 
-# 2. 启动后端
+**第二步：将以下文件打包后上传到服务器**
+
+```
+NodeVault/
+├── deploy/
+│   └── Dockerfile          # 镜像构建文件
+├── backend/                # 后端源码（整个目录）
+├── frontend/
+│   └── dist/               # 前端构建产物（只需 dist，不需要 src）
+├── docker-compose.yml      # 编排文件
+├── pyproject.toml          # Python 依赖清单
+├── alembic.ini             # 数据库迁移配置
+└── .env.example            # 环境变量模板（上传后改名为 .env 并填写）
+```
+
+> `frontend/src`、`frontend/node_modules`、`.git`、`__pycache__`、`.venv` **不需要**上传。
+
+打包命令参考：
+
+```bash
+zip -r nodevault.zip \
+  deploy/ backend/ frontend/dist/ \
+  docker-compose.yml pyproject.toml alembic.ini .env.example
+```
+
+**第三步：在服务器上配置并启动**
+
+```bash
+# 配置环境变量
+cp .env.example .env
+# 编辑 .env，填写数据库连接地址和各项密钥
+
+# 构建依赖镜像（首次或 pyproject.toml 变更后执行）
+docker compose build
+
+# 启动
+docker compose up -d
+
+# 初始化数据库（首次执行一次）
+docker compose exec app alembic upgrade head
+```
+
+访问 `http://your-server:8000` 开始使用。
+
+> 详细说明请查看 **[用户使用手册](USAGE.md)**
+
+---
+
+### 方式二：本地开发启动
+
+需要本地已运行 PostgreSQL、Redis、MeiliSearch，并在 `.env` 中配置好连接地址。
+
+```bash
+# 1. 安装后端依赖并启动
 python -m venv .venv && .venv\Scripts\activate
 pip install -e ".[dev]"
-copy .env.example .env
+copy .env.example .env   # 填写本地服务连接地址
 alembic upgrade head
 uvicorn backend.main:app --reload --port 8000
 
-# 3. 启动前端
+# 2. 启动前端开发服务器（另开终端）
 cd frontend
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
-访问 `http://localhost:5173` 开始使用。
+访问 `http://localhost:5173` 开始使用（前端开发服务器）。
 
 > 初始超级管理员账号请参考 `.env.example` 中的配置说明。
 
@@ -107,6 +155,14 @@ pnpm dev
 | [用户使用手册](USAGE.md) | 面向普通用户的完整操作指南，包含网页界面和 Python SDK 的使用说明 |
 | [贡献指南](CONTRIBUTING.md) | 如何参与项目开发 |
 | [API 文档](http://localhost:8000/docs) | 在线接口文档（启动服务后可访问） |
+
+### 部署相关文件
+
+| 文件 | 说明 |
+|-----|------|
+| `docker-compose.yml` | Docker 编排文件，一条命令启动应用 |
+| `deploy/Dockerfile` | 应用镜像构建文件（预装所有 Python 依赖，代码运行时挂载） |
+| `.env.example` | 环境变量模板，复制为 `.env` 后填写即可 |
 
 ---
 

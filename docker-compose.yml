@@ -1,0 +1,33 @@
+# 启动前请确保：
+#   1. 已执行 cd frontend && npm install && npm run build  （生成 frontend/dist/）
+#   2. 复制并填写环境变量：cp .env.example .env
+#      DATABASE_URL / REDIS_URL / MEILISEARCH_URL 等直接读取 .env，无需修改此文件。
+#
+# 常用命令：
+#   docker compose build          # 首次或 pyproject.toml 变更后重新构建依赖镜像
+#   docker compose up -d          # 后台启动
+#   docker compose logs -f app    # 查看后端日志
+#   docker compose down           # 停止并移除容器
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: nodevault-app:latest
+    restart: unless-stopped
+    volumes:
+      # 后端源码（可热更新；如需自动重载请在 command 中加 --reload）
+      - ./backend:/app/backend
+      # 预构建的前端静态文件（只读）
+      - ./frontend/dist:/app/frontend/dist:ro
+      # Alembic 配置（执行数据库迁移时需要）
+      - ./alembic.ini:/app/alembic.ini:ro
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    # 所有连接信息全部从 .env 读取，包括 DATABASE_URL / REDIS_URL / MEILISEARCH_URL
+    env_file:
+      - .env
+    # 让容器能访问宿主机上的外部服务（Windows/Mac 用 host-gateway，Linux 同样适用）
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

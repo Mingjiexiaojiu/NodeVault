@@ -67,7 +67,6 @@
           </button>
         </div>
       </div>
-    </template>
 
       <!-- API 密钥管理 -->
       <div class="bg-white rounded-2xl overflow-hidden" style="box-shadow: 0 1px 4px rgba(0,0,0,0.06)">

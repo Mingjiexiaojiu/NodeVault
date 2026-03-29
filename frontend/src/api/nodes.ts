@@ -86,7 +86,7 @@ export interface CreateNodePayload {
   display_name?: string
   description?: string
   category_id: string
-  department_id: string
+  department_id?: string
   tags?: string[]
   version?: string
   runtime: {

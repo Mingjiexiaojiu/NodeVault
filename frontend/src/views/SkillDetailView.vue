@@ -466,7 +466,7 @@ import {
   deleteSkill,
 } from '@/api/skills'
 import type { SkillDetail, GenerateResult, SkillNodeItem } from '@/api/skills'
-import { listNodes } from '@/api/nodes'
+import { searchNodes as apiSearchNodes } from '@/api/nodes'
 import type { NodeItem } from '@/api/nodes'
 import { getAIConfigs } from '@/api/ai-config'
 import type { AIConfigItem } from '@/api/ai-config'
@@ -516,8 +516,8 @@ function searchNodes() {
   searchTimer = setTimeout(async () => {
     if (!addNodeSearch.value) { searchResult.value = []; return }
     try {
-      const res = await listNodes({ keyword: addNodeSearch.value, page_size: 10 })
-      searchResult.value = res.data
+      const res = await apiSearchNodes({ q: addNodeSearch.value, page_size: 10 })
+      searchResult.value = res.data.results
     } catch { searchResult.value = [] }
   }, 300)
 }

@@ -35,7 +35,7 @@
         class="flex items-center justify-between bg-white rounded-xl border border-gray-200 px-5 py-4 hover:border-indigo-200 hover:shadow-sm transition-all group"
       >
         <div class="flex items-center gap-4 min-w-0">
-          <TypeBadge :type="node.type" />
+          <TypeBadge :category="node.category" />
           <div class="min-w-0">
             <p class="text-sm font-medium text-gray-900 group-hover:text-indigo-600 transition-colors">
               {{ node.display_name || node.name }}
