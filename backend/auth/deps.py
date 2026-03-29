@@ -46,7 +46,7 @@ async def get_current_user(
             raise credentials_exception
 
         result = await db.execute(
-            select(User).where(User.id == uuid.UUID(user_id)).options(selectinload(User.memberships))
+            select(User).where(User.id == uuid.UUID(user_id)).options(selectinload(User.department_memberships))
         )
         user = result.scalar_one_or_none()
         if user is None or not user.is_active:
@@ -59,7 +59,7 @@ async def get_current_user(
         result = await db.execute(
             select(ApiKey)
             .where(ApiKey.key_hash == key_hash, ApiKey.is_active.is_(True))
-            .options(selectinload(ApiKey.owner).selectinload(User.memberships))
+            .options(selectinload(ApiKey.owner).selectinload(User.department_memberships))
         )
         api_key = result.scalar_one_or_none()
         if api_key is None or not api_key.owner.is_active:

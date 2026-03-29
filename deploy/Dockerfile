@@ -1,6 +1,6 @@
 # 依赖镜像 —— 只安装 Python 依赖，不打包源码
 # 源码在 docker-compose 启动时通过 volume 挂载进来
-FROM python:3.11-slim
+FROM crpi-pqzengdgydwtnauc.cn-shanghai.personal.cr.aliyuncs.com/mjxj-env/python:3.11
 
 WORKDIR /app
 
@@ -15,8 +15,8 @@ COPY pyproject.toml ./
 # 创建最小占位包，让 setuptools 能解析并安装所有 [project.dependencies]
 # 安装完成后删除占位代码；运行时真正的 backend/ 由 volume 挂载覆盖
 RUN mkdir -p backend && touch backend/__init__.py \
-    && pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir . \
+    && pip install --no-cache-dir --upgrade pip setuptools wheel -i https://pypi.tuna.tsinghua.edu.cn/simple \
+    && pip install --no-cache-dir . -i https://pypi.tuna.tsinghua.edu.cn/simple \
     && rm -rf backend
 
 EXPOSE 8000
