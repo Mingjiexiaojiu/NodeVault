@@ -1,14 +1,14 @@
 <template>
-  <div class="min-h-screen relative flex items-center justify-center px-4 overflow-hidden"
+  <div class="min-h-screen relative flex flex-col items-center py-10 px-4"
     style="background: linear-gradient(135deg, #eef2ff 0%, #f0f9ff 50%, #faf5ff 100%)">
 
-    <!-- 背景装饰圆 -->
-    <div class="absolute -top-32 -right-32 w-96 h-96 rounded-full opacity-30"
+    <!-- 背景装饰圆（fixed 定位，不影响文档高度） -->
+    <div class="fixed -top-32 -right-32 w-96 h-96 rounded-full opacity-30 pointer-events-none"
       style="background: radial-gradient(circle, #8b5cf6, transparent 70%)" />
-    <div class="absolute -bottom-40 -left-40 w-[30rem] h-[30rem] rounded-full opacity-20"
+    <div class="fixed -bottom-40 -left-40 w-[30rem] h-[30rem] rounded-full opacity-20 pointer-events-none"
       style="background: radial-gradient(circle, #6366f1, transparent 70%)" />
 
-    <div class="relative w-full max-w-md">
+    <div class="relative w-full max-w-md my-auto">
       <!-- Logo 区 -->
       <div class="text-center mb-8">
         <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-4"
@@ -149,15 +149,29 @@
 
           <!-- 部门选择（仅普通用户） -->
           <div v-if="form.requested_role === 2" class="space-y-1">
-            <label class="text-sm font-medium text-gray-700">选择部门 <span class="text-gray-400 font-normal text-xs">（可选）</span></label>
-            <select v-model="form.department_id"
-              class="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 transition">
-              <option value="">— 暂不选择部门 —</option>
-              <option v-for="dept in departments" :key="dept.id" :value="dept.id">
-                {{ dept.display_name || dept.slug }}
-              </option>
-            </select>
-            <p v-if="deptLoadFailed" class="text-xs text-gray-400">部门列表加载失败，可跳过</p>
+            <label class="text-sm font-medium text-gray-700">选择部门 <span class="text-red-400">*</span></label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-3 flex items-center pointer-events-none">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <select v-model="form.department_id"
+                :class="['w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm bg-white appearance-none focus:outline-none focus:ring-2 transition',
+                  errors.department ? 'border-red-300 focus:ring-red-400 text-gray-700' : 'border-gray-200 focus:ring-indigo-400 focus:border-indigo-400 text-gray-700']">
+                <option value="" disabled>— 请选择所属部门 —</option>
+                <option v-for="dept in departments" :key="dept.id" :value="dept.id">
+                  {{ dept.display_name || dept.slug }}
+                </option>
+              </select>
+              <div class="absolute inset-y-0 right-3 flex items-center pointer-events-none">
+                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+            <p v-if="errors.department" class="text-xs text-red-500">{{ errors.department }}</p>
+            <p v-if="deptLoadFailed" class="text-xs text-gray-400">部门列表加载失败，请刷新重试</p>
           </div>
 
           <!-- 主管申请提示 -->
@@ -221,7 +235,7 @@ const form = reactive({
   requested_role: 2,
   department_id: '',
 })
-const errors = reactive({ email: '', username: '', display_name: '', password: '' })
+const errors = reactive({ email: '', username: '', display_name: '', password: '', department: '' })
 const errorMsg = ref('')
 const loading = ref(false)
 const showPwd = ref(false)
@@ -231,7 +245,7 @@ const deptLoadFailed = ref(false)
 
 async function loadDepartments() {
   try {
-    const res = await http.get<{ items: DeptOption[] }>('/departments')
+    const res = await http.get<{ items: DeptOption[] }>('/departments/public')
     departments.value = res.data?.items ?? (Array.isArray(res.data) ? res.data : [])
   } catch {
     deptLoadFailed.value = true
@@ -260,6 +274,7 @@ async function handleRegister() {
   errors.username = ''
   errors.display_name = ''
   errors.password = ''
+  errors.department = ''
   errorMsg.value = ''
   supervisorApplied.value = false
 
@@ -270,6 +285,7 @@ async function handleRegister() {
   if (unameErr) { errors.username = unameErr; return }
   const pwdErr = validatePassword(form.password)
   if (pwdErr) { errors.password = pwdErr; return }
+  if (form.requested_role === 2 && !form.department_id) { errors.department = '请选择所属部门'; return }
 
   loading.value = true
   try {
@@ -280,13 +296,15 @@ async function handleRegister() {
       password: form.password,
       requested_role: form.requested_role,
     }
-    if (form.requested_role === 2 && form.department_id) {
+    if (form.requested_role === 2) {
       payload.department_id = form.department_id
     }
     await register(payload)
 
     if (form.requested_role === 1) {
-      supervisorApplied.value = true
+      // 主管申请账号未激活，不能自动登录，跳转到登录页展示等待审批提示
+      router.push({ path: '/login', query: { pending_approval: '1' } })
+      return
     }
 
     try {

@@ -12,10 +12,10 @@
 services:
   app:
     # 本地开发可用 build，生产环境推荐注释掉 build，改用 image 直接拉取 ACR 镜像
-    # build:
-    #   context: .
-    #   dockerfile: deploy/Dockerfile
-    image: registry.cn-hangzhou.aliyuncs.com/<your-namespace>/nodevault-app:latest
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    # image: registry.cn-hangzhou.aliyuncs.com/<your-namespace>/nodevault-app:latest
     restart: unless-stopped
     volumes:
       # 后端源码（可热更新；如需自动重载请在 command 中加 --reload）
@@ -25,7 +25,7 @@ services:
       # Alembic 配置（执行数据库迁移时需要）
       - ./alembic.ini:/app/alembic.ini:ro
     ports:
-      - "${APP_PORT:-8000}:8000"
+      - "${APP_PORT:-18180}:8000"
     # 所有连接信息全部从 .env 读取，包括 DATABASE_URL / REDIS_URL / MEILISEARCH_URL
     env_file:
       - .env

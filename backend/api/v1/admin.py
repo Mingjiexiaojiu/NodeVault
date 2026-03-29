@@ -300,6 +300,8 @@ async def list_all_departments(
     node_map: dict[uuid.UUID, int] = {}
     owner_map: dict[uuid.UUID, str] = {}
 
+    supervisor_map: dict[uuid.UUID, str] = {}
+
     if dept_ids:
         m_result = await db.execute(
             select(DepartmentMember.department_id, func.count().label("cnt"))
@@ -315,6 +317,18 @@ async def list_all_departments(
         )
         node_map = {row.department_id: row.cnt for row in n_result}
 
+        # 查询每个部门的主管（User.role==1 且 DepartmentMember.role=="admin"）
+        sup_result = await db.execute(
+            select(DepartmentMember.department_id, User.username)
+            .join(User, DepartmentMember.user_id == User.id)
+            .where(
+                DepartmentMember.department_id.in_(dept_ids),
+                DepartmentMember.role == "admin",
+                User.role == 1,
+            )
+        )
+        supervisor_map = {row.department_id: row.username for row in sup_result}
+
     if owner_ids:
         u_result = await db.execute(select(User.id, User.username).where(User.id.in_(owner_ids)))
         owner_map = {row.id: row.username for row in u_result}
@@ -326,6 +340,7 @@ async def list_all_departments(
             display_name=d.display_name,
             owner_id=d.owner_id,
             owner_username=owner_map.get(d.owner_id),
+            supervisor_username=supervisor_map.get(d.id),
             member_count=member_map.get(d.id, 0),
             node_count=node_map.get(d.id, 0),
             created_at=d.created_at,
@@ -333,6 +348,61 @@ async def list_all_departments(
         for d in departments
     ]
     return ApiResponse(data={"items": [i.model_dump() for i in items], "total": total, "page": page, "page_size": page_size})
+
+
+@router.post("/departments", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
+async def admin_create_department(
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_superadmin_user),
+) -> ApiResponse:
+    from pydantic import BaseModel, Field
+
+    slug: str = payload.get("slug", "")
+    display_name: str = payload.get("display_name", "")
+    description: str | None = payload.get("description")
+
+    if not slug or not display_name:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="slug 和 display_name 不能为空")
+
+    existing = (await db.execute(select(Department).where(Department.slug == slug))).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="部门标识已存在")
+
+    dept = Department(
+        slug=slug,
+        display_name=display_name,
+        description=description,
+        owner_id=_admin.id,
+    )
+    db.add(dept)
+    await db.commit()
+    await db.refresh(dept)
+    return ApiResponse(
+        data={"id": str(dept.id), "slug": dept.slug, "display_name": dept.display_name},
+        message="部门已创建",
+    )
+
+
+@router.delete("/departments/{dept_id}", response_model=ApiResponse)
+async def admin_delete_department(
+    dept_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    _admin: User = Depends(get_superadmin_user),
+) -> ApiResponse:
+    dept = (await db.execute(select(Department).where(Department.id == dept_id))).scalar_one_or_none()
+    if dept is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="部门不存在")
+
+    member_count = (await db.execute(
+        select(func.count(DepartmentMember.id)).where(DepartmentMember.department_id == dept_id)
+    )).scalar_one()
+    if member_count > 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="部门仍有成员，无法删除")
+
+    await db.delete(dept)
+    await db.commit()
+    return ApiResponse(data=None, message="部门已删除")
 
 
 @router.get("/skills", response_model=ApiResponse)

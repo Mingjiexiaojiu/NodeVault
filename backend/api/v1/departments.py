@@ -41,6 +41,34 @@ class MemberAdd(BaseModel):
 # ── endpoints ────────────────────────────────────────────────────
 
 
+@router.get("/public", response_model=ApiResponse, summary="公开部门列表（注册时使用，无需登录）")
+async def list_departments_public(
+    db: AsyncSession = Depends(get_db),
+):
+    """返回已有主管（User.role==1 且 DepartmentMember.role=='admin'）的部门列表，用于注册页面选择部门，无需身份验证。"""
+    supervisor_exists = (
+        select(DepartmentMember.department_id)
+        .join(User, DepartmentMember.user_id == User.id)
+        .where(
+            DepartmentMember.department_id == Department.id,
+            DepartmentMember.role == "admin",
+            User.role == 1,
+        )
+        .exists()
+    )
+    result = await db.execute(
+        select(Department.id, Department.slug, Department.display_name)
+        .where(supervisor_exists)
+        .order_by(Department.display_name)
+    )
+    rows = result.all()
+    items = [
+        {"id": str(r.id), "slug": r.slug, "display_name": r.display_name}
+        for r in rows
+    ]
+    return ApiResponse(data={"items": items})
+
+
 @router.get("", response_model=ApiResponse, summary="所有部门列表")
 async def list_departments(
     page: int = Query(1, ge=1),
@@ -276,6 +304,25 @@ async def add_member(
     )).scalar_one_or_none()
     if target_user is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"用户 {payload.username} 不存在")
+
+    # role="admin" 额外校验
+    if payload.role == "admin":
+        if target_user.role != 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="只有平台主管（role=1）才能担任部门管理员",
+            )
+        existing_supervisor = (await db.execute(
+            select(DepartmentMember)
+            .join(User, DepartmentMember.user_id == User.id)
+            .where(
+                DepartmentMember.department_id == dept_id,
+                DepartmentMember.role == "admin",
+                User.role == 1,
+            )
+        )).scalar_one_or_none()
+        if existing_supervisor is not None:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该部门已有主管")
 
     # 检查是否已是成员
     existing = (await db.execute(

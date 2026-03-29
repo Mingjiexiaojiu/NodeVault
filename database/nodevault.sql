@@ -1,18 +1,13 @@
 /*
  Navicat Premium Dump SQL
 
- Source Server         : 222.186.21.30
  Source Server Type    : PostgreSQL
  Source Server Version : 170007 (170007)
- Source Host           : 222.186.21.30:49816
- Source Catalog        : nodevault_db
- Source Schema         : public
-
  Target Server Type    : PostgreSQL
  Target Server Version : 170007 (170007)
  File Encoding         : 65001
 
- Date: 23/03/2026 18:09:03
+ Date: 29/03/2026 (updated to match current schema)
 */
 
 
@@ -33,8 +28,7 @@ CACHE 1;
 DROP TABLE IF EXISTS "public"."alembic_version" CASCADE;
 CREATE TABLE "public"."alembic_version" (
   "version_num" varchar(32) COLLATE "pg_catalog"."default" NOT NULL
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for api_keys
@@ -49,8 +43,7 @@ CREATE TABLE "public"."api_keys" (
   "is_active" bool NOT NULL DEFAULT true,
   "created_at" timestamp(6) NOT NULL DEFAULT now(),
   "last_used_at" timestamp(6)
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for categories
@@ -65,8 +58,7 @@ CREATE TABLE "public"."categories" (
   "is_default" bool NOT NULL DEFAULT false,
   "created_by" uuid,
   "created_at" timestamp(6) NOT NULL DEFAULT now()
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for credential_token_cache
@@ -78,8 +70,33 @@ CREATE TABLE "public"."credential_token_cache" (
   "access_token" text COLLATE "pg_catalog"."default" NOT NULL,
   "expires_at" timestamp(6),
   "created_at" timestamp(6) NOT NULL DEFAULT now()
-)
-;
+);
+
+-- ----------------------------
+-- Table structure for departments  (renamed from namespaces)
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."departments" CASCADE;
+CREATE TABLE "public"."departments" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "slug" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
+  "display_name" varchar(256) COLLATE "pg_catalog"."default",
+  "description" text COLLATE "pg_catalog"."default",
+  "owner_id" uuid NOT NULL,
+  "created_at" timestamp(6) NOT NULL DEFAULT now()
+);
+
+-- ----------------------------
+-- Table structure for department_members  (renamed from namespace_members)
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."department_members" CASCADE;
+CREATE TABLE "public"."department_members" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "department_id" uuid NOT NULL,
+  "user_id" uuid NOT NULL,
+  "role" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'member'::character varying,
+  "status" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'active'::character varying,
+  "joined_at" timestamp(6) NOT NULL DEFAULT now()
+);
 
 -- ----------------------------
 -- Table structure for discovery_sessions
@@ -96,35 +113,7 @@ CREATE TABLE "public"."discovery_sessions" (
   "imported_count" int4 NOT NULL DEFAULT 0,
   "created_at" timestamp(6) NOT NULL DEFAULT now(),
   "completed_at" timestamp(6)
-)
-;
-
--- ----------------------------
--- Table structure for namespace_members
--- ----------------------------
-DROP TABLE IF EXISTS "public"."namespace_members" CASCADE;
-CREATE TABLE "public"."namespace_members" (
-  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
-  "namespace_id" uuid NOT NULL,
-  "user_id" uuid NOT NULL,
-  "role" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'member'::character varying,
-  "joined_at" timestamp(6) NOT NULL DEFAULT now()
-)
-;
-
--- ----------------------------
--- Table structure for namespaces
--- ----------------------------
-DROP TABLE IF EXISTS "public"."namespaces" CASCADE;
-CREATE TABLE "public"."namespaces" (
-  "id" uuid NOT NULL,
-  "slug" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
-  "display_name" varchar(256) COLLATE "pg_catalog"."default",
-  "owner_id" uuid NOT NULL,
-  "created_at" timestamp(6) NOT NULL,
-  "description" text COLLATE "pg_catalog"."default"
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for node_invocation_logs
@@ -141,8 +130,7 @@ CREATE TABLE "public"."node_invocation_logs" (
   "latency_ms" int4,
   "error_message" text COLLATE "pg_catalog"."default",
   "created_at" timestamp(6) NOT NULL
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for node_tags
@@ -152,8 +140,7 @@ CREATE TABLE "public"."node_tags" (
   "id" int4 NOT NULL DEFAULT nextval('node_tags_id_seq'::regclass),
   "node_id" uuid NOT NULL,
   "tag" varchar(64) COLLATE "pg_catalog"."default" NOT NULL
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for node_versions
@@ -171,8 +158,7 @@ CREATE TABLE "public"."node_versions" (
   "is_deprecated" bool NOT NULL,
   "created_at" timestamp(6) NOT NULL,
   "created_by" uuid
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for nodes
@@ -181,7 +167,7 @@ DROP TABLE IF EXISTS "public"."nodes" CASCADE;
 CREATE TABLE "public"."nodes" (
   "id" uuid NOT NULL,
   "name" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
-  "namespace_id" uuid NOT NULL,
+  "department_id" uuid NOT NULL,
   "owner_id" uuid NOT NULL,
   "display_name" varchar(256) COLLATE "pg_catalog"."default",
   "description" text COLLATE "pg_catalog"."default",
@@ -189,13 +175,28 @@ CREATE TABLE "public"."nodes" (
   "visibility" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
   "created_at" timestamp(6) NOT NULL,
   "updated_at" timestamp(6) NOT NULL,
-  "invocation_count" int4 NOT NULL,
+  "invocation_count" int4 NOT NULL DEFAULT 0,
   "source_credential_id" uuid,
   "source_path" varchar(512) COLLATE "pg_catalog"."default",
   "discovery_session_id" uuid,
   "category_id" uuid NOT NULL
-)
-;
+);
+
+-- ----------------------------
+-- Table structure for role_applications  (new)
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."role_applications" CASCADE;
+CREATE TABLE "public"."role_applications" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "user_id" uuid NOT NULL,
+  "requested_role" int4 NOT NULL,
+  "status" varchar(16) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'pending'::character varying,
+  "reason" text COLLATE "pg_catalog"."default",
+  "review_note" text COLLATE "pg_catalog"."default",
+  "reviewed_by" uuid,
+  "created_at" timestamp(6) NOT NULL DEFAULT now(),
+  "reviewed_at" timestamp(6)
+);
 
 -- ----------------------------
 -- Table structure for service_credentials
@@ -221,8 +222,7 @@ CREATE TABLE "public"."service_credentials" (
   "api_key_nonce" bytea,
   "created_at" timestamp(6) NOT NULL DEFAULT now(),
   "updated_at" timestamp(6) NOT NULL DEFAULT now()
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for skill_nodes
@@ -235,8 +235,7 @@ CREATE TABLE "public"."skill_nodes" (
   "usage_hint" varchar(500) COLLATE "pg_catalog"."default",
   "sort_order" int4 NOT NULL DEFAULT 0,
   "created_at" timestamp(6) NOT NULL DEFAULT now()
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for skill_versions
@@ -251,8 +250,7 @@ CREATE TABLE "public"."skill_versions" (
   "release_notes" text COLLATE "pg_catalog"."default",
   "is_default" bool NOT NULL DEFAULT false,
   "created_at" timestamp(6) NOT NULL DEFAULT now()
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for skills
@@ -263,15 +261,24 @@ CREATE TABLE "public"."skills" (
   "name" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
   "display_name" varchar(256) COLLATE "pg_catalog"."default",
   "description" text COLLATE "pg_catalog"."default",
-  "namespace_id" uuid NOT NULL,
+  "department_id" uuid NOT NULL,
   "owner_id" uuid NOT NULL,
   "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'active'::character varying,
   "is_stale" bool NOT NULL DEFAULT false,
   "created_at" timestamp(6) NOT NULL DEFAULT now(),
   "updated_at" timestamp(6) NOT NULL DEFAULT now(),
   "is_system" bool NOT NULL DEFAULT false
-)
-;
+);
+
+-- ----------------------------
+-- Table structure for system_settings  (new)
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."system_settings" CASCADE;
+CREATE TABLE "public"."system_settings" (
+  "key" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
+  "value" text COLLATE "pg_catalog"."default",
+  "updated_at" timestamp(6) NOT NULL DEFAULT now()
+);
 
 -- ----------------------------
 -- Table structure for user_ai_configs
@@ -289,8 +296,7 @@ CREATE TABLE "public"."user_ai_configs" (
   "is_default" bool NOT NULL DEFAULT false,
   "created_at" timestamp(6) NOT NULL,
   "updated_at" timestamp(6) NOT NULL
-)
-;
+);
 
 -- ----------------------------
 -- Table structure for users
@@ -301,25 +307,22 @@ CREATE TABLE "public"."users" (
   "email" varchar(256) COLLATE "pg_catalog"."default" NOT NULL,
   "username" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
   "hashed_password" varchar(256) COLLATE "pg_catalog"."default" NOT NULL,
-  "is_active" bool NOT NULL,
-  "created_at" timestamp(6) NOT NULL,
-  "updated_at" timestamp(6) NOT NULL,
+  "is_active" bool NOT NULL DEFAULT true,
   "role" int4 NOT NULL DEFAULT 2,
   "display_name" varchar(128) COLLATE "pg_catalog"."default",
   "avatar_url" varchar(512) COLLATE "pg_catalog"."default",
   "bio" text COLLATE "pg_catalog"."default",
   "phone" varchar(32) COLLATE "pg_catalog"."default",
-  "department" varchar(128) COLLATE "pg_catalog"."default",
-  "title" varchar(128) COLLATE "pg_catalog"."default"
-)
-;
+  "title" varchar(128) COLLATE "pg_catalog"."default",
+  "created_at" timestamp(6) NOT NULL DEFAULT now(),
+  "updated_at" timestamp(6) NOT NULL DEFAULT now()
+);
 
 -- ----------------------------
 -- Alter sequences owned by
 -- ----------------------------
 ALTER SEQUENCE "public"."node_tags_id_seq"
 OWNED BY "public"."node_tags"."id";
-SELECT setval('"public"."node_tags_id_seq"', 103, true);
 
 -- ----------------------------
 -- Primary Key structure for table alembic_version
@@ -371,6 +374,41 @@ CREATE UNIQUE INDEX "ix_credential_token_cache_credential_id" ON "public"."crede
 ALTER TABLE "public"."credential_token_cache" ADD CONSTRAINT "credential_token_cache_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Indexes structure for table departments
+-- ----------------------------
+CREATE UNIQUE INDEX "ix_departments_slug" ON "public"."departments" USING btree (
+  "slug" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table departments
+-- ----------------------------
+ALTER TABLE "public"."departments" ADD CONSTRAINT "departments_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table department_members
+-- ----------------------------
+CREATE INDEX "ix_department_members_department_id" ON "public"."department_members" USING btree (
+  "department_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+);
+CREATE INDEX "ix_department_members_user_id" ON "public"."department_members" USING btree (
+  "user_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+);
+CREATE INDEX "ix_department_members_status" ON "public"."department_members" USING btree (
+  "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Uniques structure for table department_members
+-- ----------------------------
+ALTER TABLE "public"."department_members" ADD CONSTRAINT "uq_department_member" UNIQUE ("department_id", "user_id");
+
+-- ----------------------------
+-- Primary Key structure for table department_members
+-- ----------------------------
+ALTER TABLE "public"."department_members" ADD CONSTRAINT "department_members_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
 -- Indexes structure for table discovery_sessions
 -- ----------------------------
 CREATE INDEX "ix_discovery_sessions_status" ON "public"."discovery_sessions" USING btree (
@@ -384,38 +422,6 @@ CREATE INDEX "ix_discovery_sessions_user_id" ON "public"."discovery_sessions" US
 -- Primary Key structure for table discovery_sessions
 -- ----------------------------
 ALTER TABLE "public"."discovery_sessions" ADD CONSTRAINT "discovery_sessions_pkey" PRIMARY KEY ("id");
-
--- ----------------------------
--- Indexes structure for table namespace_members
--- ----------------------------
-CREATE INDEX "ix_namespace_members_namespace_id" ON "public"."namespace_members" USING btree (
-  "namespace_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
-);
-CREATE INDEX "ix_namespace_members_user_id" ON "public"."namespace_members" USING btree (
-  "user_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
-);
-
--- ----------------------------
--- Uniques structure for table namespace_members
--- ----------------------------
-ALTER TABLE "public"."namespace_members" ADD CONSTRAINT "uq_namespace_member" UNIQUE ("namespace_id", "user_id");
-
--- ----------------------------
--- Primary Key structure for table namespace_members
--- ----------------------------
-ALTER TABLE "public"."namespace_members" ADD CONSTRAINT "namespace_members_pkey" PRIMARY KEY ("id");
-
--- ----------------------------
--- Indexes structure for table namespaces
--- ----------------------------
-CREATE UNIQUE INDEX "ix_namespaces_slug" ON "public"."namespaces" USING btree (
-  "slug" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
-);
-
--- ----------------------------
--- Primary Key structure for table namespaces
--- ----------------------------
-ALTER TABLE "public"."namespaces" ADD CONSTRAINT "namespaces_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
 -- Indexes structure for table node_invocation_logs
@@ -476,6 +482,9 @@ ALTER TABLE "public"."node_versions" ADD CONSTRAINT "node_versions_pkey" PRIMARY
 CREATE INDEX "ix_nodes_category_id" ON "public"."nodes" USING btree (
   "category_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
 );
+CREATE INDEX "ix_nodes_department_id" ON "public"."nodes" USING btree (
+  "department_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+);
 CREATE INDEX "ix_nodes_discovery_session_id" ON "public"."nodes" USING btree (
   "discovery_session_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
 );
@@ -492,12 +501,27 @@ CREATE INDEX "ix_nodes_status" ON "public"."nodes" USING btree (
 -- ----------------------------
 -- Uniques structure for table nodes
 -- ----------------------------
-ALTER TABLE "public"."nodes" ADD CONSTRAINT "uq_node_name_namespace" UNIQUE ("name", "namespace_id");
+ALTER TABLE "public"."nodes" ADD CONSTRAINT "uq_node_name_department" UNIQUE ("name", "department_id");
 
 -- ----------------------------
 -- Primary Key structure for table nodes
 -- ----------------------------
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table role_applications
+-- ----------------------------
+CREATE INDEX "ix_role_applications_user_id" ON "public"."role_applications" USING btree (
+  "user_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+);
+CREATE INDEX "ix_role_applications_status" ON "public"."role_applications" USING btree (
+  "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table role_applications
+-- ----------------------------
+ALTER TABLE "public"."role_applications" ADD CONSTRAINT "role_applications_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
 -- Indexes structure for table service_credentials
@@ -537,10 +561,6 @@ ALTER TABLE "public"."skill_nodes" ADD CONSTRAINT "skill_nodes_pkey" PRIMARY KEY
 CREATE INDEX "ix_skill_versions_skill_id" ON "public"."skill_versions" USING btree (
   "skill_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
 );
-
--- ----------------------------
--- Indexes structure for table skill_versions (partial unique)
--- ----------------------------
 CREATE UNIQUE INDEX "uq_skill_default_version" ON "public"."skill_versions" USING btree (
   "skill_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
 ) WHERE is_default = true;
@@ -558,11 +578,11 @@ ALTER TABLE "public"."skill_versions" ADD CONSTRAINT "skill_versions_pkey" PRIMA
 -- ----------------------------
 -- Indexes structure for table skills
 -- ----------------------------
+CREATE INDEX "ix_skills_department_id" ON "public"."skills" USING btree (
+  "department_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+);
 CREATE INDEX "ix_skills_name" ON "public"."skills" USING btree (
   "name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
-);
-CREATE INDEX "ix_skills_namespace_id" ON "public"."skills" USING btree (
-  "namespace_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
 );
 CREATE INDEX "ix_skills_status" ON "public"."skills" USING btree (
   "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
@@ -571,12 +591,17 @@ CREATE INDEX "ix_skills_status" ON "public"."skills" USING btree (
 -- ----------------------------
 -- Uniques structure for table skills
 -- ----------------------------
-ALTER TABLE "public"."skills" ADD CONSTRAINT "uq_skill_name_namespace" UNIQUE ("name", "namespace_id");
+ALTER TABLE "public"."skills" ADD CONSTRAINT "uq_skill_name_department" UNIQUE ("name", "department_id");
 
 -- ----------------------------
 -- Primary Key structure for table skills
 -- ----------------------------
 ALTER TABLE "public"."skills" ADD CONSTRAINT "skills_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Primary Key structure for table system_settings
+-- ----------------------------
+ALTER TABLE "public"."system_settings" ADD CONSTRAINT "system_settings_pkey" PRIMARY KEY ("key");
 
 -- ----------------------------
 -- Indexes structure for table user_ai_configs
@@ -626,20 +651,20 @@ ALTER TABLE "public"."categories" ADD CONSTRAINT "categories_created_by_fkey" FO
 ALTER TABLE "public"."credential_token_cache" ADD CONSTRAINT "credential_token_cache_credential_id_fkey" FOREIGN KEY ("credential_id") REFERENCES "public"."service_credentials" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------
+-- Foreign Keys structure for table departments
+-- ----------------------------
+ALTER TABLE "public"."departments" ADD CONSTRAINT "departments_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Foreign Keys structure for table department_members
+-- ----------------------------
+ALTER TABLE "public"."department_members" ADD CONSTRAINT "department_members_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "public"."departments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."department_members" ADD CONSTRAINT "department_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+
+-- ----------------------------
 -- Foreign Keys structure for table discovery_sessions
 -- ----------------------------
 ALTER TABLE "public"."discovery_sessions" ADD CONSTRAINT "discovery_sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
-
--- ----------------------------
--- Foreign Keys structure for table namespace_members
--- ----------------------------
-ALTER TABLE "public"."namespace_members" ADD CONSTRAINT "namespace_members_namespace_id_fkey" FOREIGN KEY ("namespace_id") REFERENCES "public"."namespaces" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
-ALTER TABLE "public"."namespace_members" ADD CONSTRAINT "namespace_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
-
--- ----------------------------
--- Foreign Keys structure for table namespaces
--- ----------------------------
-ALTER TABLE "public"."namespaces" ADD CONSTRAINT "namespaces_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------
 -- Foreign Keys structure for table node_invocation_logs
@@ -662,10 +687,16 @@ ALTER TABLE "public"."node_versions" ADD CONSTRAINT "node_versions_node_id_fkey"
 -- Foreign Keys structure for table nodes
 -- ----------------------------
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "fk_nodes_category_id" FOREIGN KEY ("category_id") REFERENCES "public"."categories" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "public"."departments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_discovery_session_id_fkey" FOREIGN KEY ("discovery_session_id") REFERENCES "public"."discovery_sessions" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
-ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_namespace_id_fkey" FOREIGN KEY ("namespace_id") REFERENCES "public"."namespaces" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."nodes" ADD CONSTRAINT "nodes_source_credential_id_fkey" FOREIGN KEY ("source_credential_id") REFERENCES "public"."service_credentials" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Foreign Keys structure for table role_applications
+-- ----------------------------
+ALTER TABLE "public"."role_applications" ADD CONSTRAINT "role_applications_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."role_applications" ADD CONSTRAINT "role_applications_reviewed_by_fkey" FOREIGN KEY ("reviewed_by") REFERENCES "public"."users" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- ----------------------------
 -- Foreign Keys structure for table service_credentials
@@ -686,7 +717,7 @@ ALTER TABLE "public"."skill_versions" ADD CONSTRAINT "skill_versions_skill_id_fk
 -- ----------------------------
 -- Foreign Keys structure for table skills
 -- ----------------------------
-ALTER TABLE "public"."skills" ADD CONSTRAINT "skills_namespace_id_fkey" FOREIGN KEY ("namespace_id") REFERENCES "public"."namespaces" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."skills" ADD CONSTRAINT "skills_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "public"."departments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."skills" ADD CONSTRAINT "skills_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------
@@ -697,6 +728,6 @@ ALTER TABLE "public"."user_ai_configs" ADD CONSTRAINT "user_ai_configs_user_id_f
 -- ----------------------------
 -- Default super admin user
 -- ----------------------------
-INSERT INTO "public"."users" ("id", "email", "username", "hashed_password", "is_active", "created_at", "updated_at", "role", "display_name", "avatar_url", "bio", "phone", "department", "title")
-VALUES ('1a6bde58-0f9e-4afb-b782-72d7b1e32a11', 'admin@admin.com', 'MJXJadmin', '$2b$12$szN2T26xSgdhpG/vBgHK8eoIpL4pgh6vDSFEBniYcfFpUfcIRqog6', true, '2026-03-24 01:48:45.300559', '2026-03-24 01:48:45.300559', 0, '超级管理员', NULL, NULL, NULL, NULL, NULL)
+INSERT INTO "public"."users" ("id", "email", "username", "hashed_password", "is_active", "role", "display_name", "avatar_url", "bio", "phone", "title", "created_at", "updated_at")
+VALUES ('1a6bde58-0f9e-4afb-b782-72d7b1e32a11', 'admin@admin.com', 'MJXJadmin', '$2b$12$szN2T26xSgdhpG/vBgHK8eoIpL4pgh6vDSFEBniYcfFpUfcIRqog6', true, 0, '超级管理员', NULL, NULL, NULL, NULL, '2026-03-24 01:48:45.300559', '2026-03-24 01:48:45.300559')
 ON CONFLICT ("id") DO NOTHING;

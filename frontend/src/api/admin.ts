@@ -48,6 +48,7 @@ export interface AdminDepartmentListItem {
   display_name: string | null
   owner_id: string
   owner_username: string | null
+  supervisor_username: string | null
   member_count: number
   node_count: number
   created_at: string
@@ -149,6 +150,14 @@ export function updateNodeStatus(nodeId: string, status: string) {
 
 export function listAllDepartments(params?: { page?: number; page_size?: number }) {
   return http.get<PagedResult<AdminDepartmentListItem>>('/admin/departments', { params })
+}
+
+export function adminCreateDepartment(payload: { slug: string; display_name: string; description?: string }) {
+  return http.post('/admin/departments', payload)
+}
+
+export function adminDeleteDepartment(deptId: string) {
+  return http.delete(`/admin/departments/${deptId}`)
 }
 
 export function listAllSkills(params?: { page?: number; page_size?: number }) {

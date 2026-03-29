@@ -141,7 +141,11 @@ const errorMsg = ref('')
 const loading = ref(false)
 const showPwd = ref(false)
 
-const successMsg = computed(() => route.query.registered === '1' ? '注册成功，请登录' : '')
+const successMsg = computed(() => {
+  if (route.query.pending_approval === '1') return '主管申请已提交，请等待管理员审批通过后再登录'
+  if (route.query.registered === '1') return '注册成功，请登录'
+  return ''
+})
 
 async function handleLogin() {
   errors.identifier = ''
@@ -162,9 +166,11 @@ async function handleLogin() {
       router.push(redirect ?? '/')
     }
   } catch (e: unknown) {
-    const err = e as { response?: { status?: number } }
+    const err = e as { response?: { status?: number; data?: { detail?: string } } }
     if (err.response?.status === 401) {
       errorMsg.value = '用户名/邮箱或密码错误'
+    } else if (err.response?.status === 403) {
+      errorMsg.value = err.response.data?.detail ?? '账号无法登录，请联系管理员'
     } else {
       errorMsg.value = '登录失败，请稍后重试'
     }

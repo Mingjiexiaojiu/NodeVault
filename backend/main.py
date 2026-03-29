@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.v1.router import api_router
@@ -150,5 +150,15 @@ async def global_exception_handler(request: Request, exc: Exception):
 # Serve Vue SPA in production (only when dist/ exists)
 _frontend_dist = Path(__file__).parent.parent / "frontend" / "dist"
 if _frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(_frontend_dist), html=True), name="frontend")
+    # 挂载 /assets 静态资源目录（JS/CSS/fonts 等）
+    app.mount("/assets", StaticFiles(directory=str(_frontend_dist / "assets")), name="assets")
+
+    # Catch-all：先尝试返回 dist 目录下的真实文件（favicon、logo 等），
+    # 文件不存在时统一返回 index.html，从而支持 SPA 前端路由刷新
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(request: Request, full_path: str):
+        static_file = _frontend_dist / full_path
+        if full_path and static_file.exists() and static_file.is_file():
+            return FileResponse(str(static_file))
+        return FileResponse(str(_frontend_dist / "index.html"))
 

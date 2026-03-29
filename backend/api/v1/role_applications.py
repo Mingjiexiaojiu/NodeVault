@@ -11,6 +11,7 @@ from sqlalchemy.orm import joinedload
 
 from backend.auth.deps import get_superadmin_user
 from backend.database.session import get_db
+from backend.models.department import Department, DepartmentMember
 from backend.models.role_application import RoleApplication
 from backend.models.user import User
 from backend.schemas.admin import AdminRoleApplicationListItem, PaginatedResponse
@@ -78,19 +79,39 @@ async def approve_application(
     if app.status != "pending":
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="该申请已处理")
 
+    # 校验目标部门存在
+    dept = (await db.execute(select(Department).where(Department.id == payload.department_id))).scalar_one_or_none()
+    if dept is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="指定的部门不存在")
+
+    # 校验目标部门当前是否已有主管
+    existing_supervisor = (await db.execute(
+        select(DepartmentMember)
+        .join(User, DepartmentMember.user_id == User.id)
+        .where(
+            DepartmentMember.department_id == payload.department_id,
+            DepartmentMember.role == "admin",
+            User.role == 1,
+        )
+    )).scalar_one_or_none()
+    if existing_supervisor is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该部门已有主管，请选择其他部门")
+
     app.status = "approved"
     app.reviewed_by = admin.id
     app.reviewed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     app.review_note = payload.review_note
 
-    # 升级用户角色
+    # 原子操作：激活账号 + 升级角色 + 分配部门主管
     user_result = await db.execute(select(User).where(User.id == app.user_id))
     user = user_result.scalar_one_or_none()
     if user:
+        user.is_active = True
         user.role = app.requested_role
+        db.add(DepartmentMember(department_id=payload.department_id, user_id=user.id, role="admin"))
 
     await db.commit()
-    return ApiResponse(message="申请已批准，用户角色已升级")
+    return ApiResponse(message="申请已批准，用户账号已激活并分配至部门")
 
 
 @router.post("/{app_id}/reject", response_model=ApiResponse)

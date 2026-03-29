@@ -26,8 +26,8 @@ export interface RoleApplicationListResponse {
 export const listRoleApplications = (params?: { status?: string; page?: number; page_size?: number }) =>
   http.get<RoleApplicationListResponse>('/admin/role-applications', { params })
 
-export const approveApplication = (id: string, review_note?: string) =>
-  http.post(`/admin/role-applications/${id}/approve`, { review_note })
+export const approveApplication = (id: string, payload: { department_id: string; review_note?: string }) =>
+  http.post(`/admin/role-applications/${id}/approve`, payload)
 
 export const rejectApplication = (id: string, review_note?: string) =>
   http.post(`/admin/role-applications/${id}/reject`, { review_note })

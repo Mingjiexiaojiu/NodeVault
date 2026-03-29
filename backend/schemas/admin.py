@@ -71,6 +71,7 @@ class AdminDepartmentListItem(BaseModel):
     display_name: str | None = None
     owner_id: uuid.UUID
     owner_username: str | None = None
+    supervisor_username: str | None = None
     member_count: int = 0
     node_count: int = 0
     created_at: datetime

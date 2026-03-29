@@ -37,6 +37,8 @@ async def register(payload: UserRegister, db: AsyncSession = Depends(get_db)) ->
         username=payload.username,
         display_name=payload.display_name,
         hashed_password=get_password_hash(payload.password),
+        # 申请主管的账号在审批通过前不允许登录
+        is_active=payload.requested_role != 1,
     )
     db.add(user)
     await db.flush()  # 获取 user.id，但不提交
@@ -93,6 +95,24 @@ async def login(payload: UserLogin, db: AsyncSession = Depends(get_db)) -> ApiRe
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if not user.is_active:
+        # 区分"待审批"和"已封禁"，给出不同的提示
+        pending = (await db.execute(
+            select(RoleApplication).where(
+                RoleApplication.user_id == user.id,
+                RoleApplication.status == "pending",
+            )
+        )).scalar_one_or_none()
+        if pending:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="账号待审批，请等待管理员批准后再登录",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="账号已被禁用，请联系管理员",
         )
 
     token = create_access_token(subject=str(user.id))

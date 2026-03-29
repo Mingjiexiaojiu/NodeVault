@@ -75,7 +75,7 @@
             </td>
             <td class="px-4 py-3.5">
               <div v-if="app.status === 'pending'" class="flex items-center gap-2">
-                <button @click="handleApprove(app)"
+                <button @click="openApproveModal(app)"
                   :disabled="processing === app.id"
                   class="px-3 py-1 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors">
                   通过
@@ -123,12 +123,64 @@
         </div>
       </div>
     </Teleport>
+
+    <!-- 审批 + 分配部门弹窗 -->
+    <Teleport to="body">
+      <div v-if="approveModal.open" class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm mx-4">
+          <h3 class="text-base font-semibold text-gray-900 mb-4">批准主管申请</h3>
+          <div class="space-y-1 mb-4 text-sm text-gray-500">
+            <p>申请人：<span class="font-medium text-gray-800">{{ approveModal.app?.display_name || approveModal.app?.username }}</span></p>
+            <p class="text-xs text-gray-400">{{ approveModal.app?.email }}</p>
+          </div>
+
+          <!-- 部门选择 -->
+          <div class="mb-4">
+            <label class="block text-xs font-medium text-gray-600 mb-1.5">分配到部门 <span class="text-red-400">*</span></label>
+            <div v-if="approveModal.loadingDepts" class="flex items-center gap-2 text-xs text-gray-400 py-2">
+              <div class="w-3.5 h-3.5 border border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
+              加载部门中…
+            </div>
+            <select v-else v-model="approveModal.departmentId"
+              class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
+              :disabled="availableDepartments.length === 0">
+              <option value="" disabled>
+                {{ availableDepartments.length === 0 ? '当前无可分配的空余部门' : '— 请选择部门 —' }}
+              </option>
+              <option v-for="dept in availableDepartments" :key="dept.id" :value="dept.id">
+                {{ dept.display_name || dept.slug }}
+              </option>
+            </select>
+            <p v-if="!approveModal.loadingDepts && availableDepartments.length === 0"
+              class="text-xs text-amber-600 mt-1">所有部门均已有主管，请先创建新部门</p>
+          </div>
+
+          <!-- 审批备注 -->
+          <div class="mb-5">
+            <label class="block text-xs font-medium text-gray-600 mb-1.5">审批备注（可选）</label>
+            <textarea v-model="approveModal.note" rows="2" placeholder="填写审批备注"
+              class="w-full px-3 py-2 rounded-xl border border-gray-200 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-300"></textarea>
+          </div>
+
+          <div class="flex justify-end gap-2">
+            <button @click="approveModal.open = false" class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900">取消</button>
+            <button
+              @click="handleApprove"
+              :disabled="processing === approveModal.app?.id || !approveModal.departmentId || availableDepartments.length === 0"
+              class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">
+              {{ processing === approveModal.app?.id ? '处理中...' : '确认批准' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { listRoleApplications, approveApplication, rejectApplication, type RoleApplicationItem } from '@/api/roleApplications'
+import { listAllDepartments, type AdminDepartmentListItem } from '@/api/admin'
 
 const applications = ref<RoleApplicationItem[]>([])
 const total = ref(0)
@@ -143,6 +195,26 @@ const rejectModal = reactive<{ open: boolean; app: RoleApplicationItem | null; n
   app: null,
   note: '',
 })
+
+const approveModal = reactive<{
+  open: boolean
+  app: RoleApplicationItem | null
+  departmentId: string
+  note: string
+  departments: AdminDepartmentListItem[]
+  loadingDepts: boolean
+}>({
+  open: false,
+  app: null,
+  departmentId: '',
+  note: '',
+  departments: [],
+  loadingDepts: false,
+})
+
+const availableDepartments = computed(() =>
+  approveModal.departments.filter(d => !d.supervisor_username)
+)
 
 const totalPages = computed(() => Math.ceil(total.value / pageSize))
 
@@ -191,10 +263,30 @@ async function load() {
   }
 }
 
-async function handleApprove(app: RoleApplicationItem) {
-  processing.value = app.id
+async function openApproveModal(app: RoleApplicationItem) {
+  approveModal.app = app
+  approveModal.departmentId = ''
+  approveModal.note = ''
+  approveModal.departments = []
+  approveModal.loadingDepts = true
+  approveModal.open = true
   try {
-    await approveApplication(app.id)
+    const res = await listAllDepartments({ page: 1, page_size: 200 })
+    approveModal.departments = res.data.items
+  } finally {
+    approveModal.loadingDepts = false
+  }
+}
+
+async function handleApprove() {
+  if (!approveModal.app || !approveModal.departmentId) return
+  processing.value = approveModal.app.id
+  try {
+    await approveApplication(approveModal.app.id, {
+      department_id: approveModal.departmentId,
+      review_note: approveModal.note || undefined,
+    })
+    approveModal.open = false
     await load()
   } finally {
     processing.value = null

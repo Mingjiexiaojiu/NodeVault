@@ -27,4 +27,5 @@ class RoleApplicationResponse(BaseModel):
 
 
 class RoleApplicationReviewPayload(BaseModel):
+    department_id: uuid.UUID
     review_note: str | None = None
