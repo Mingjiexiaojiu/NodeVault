@@ -141,6 +141,7 @@
               <div class="w-3.5 h-3.5 border border-indigo-400 border-t-transparent rounded-full animate-spin"></div>
               加载部门中…
             </div>
+            <p v-else-if="approveModal.loadError" class="text-xs text-red-500 py-1">{{ approveModal.loadError }}</p>
             <select v-else v-model="approveModal.departmentId"
               class="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300 transition"
               :disabled="availableDepartments.length === 0">
@@ -203,6 +204,7 @@ const approveModal = reactive<{
   note: string
   departments: AdminDepartmentListItem[]
   loadingDepts: boolean
+  loadError: string
 }>({
   open: false,
   app: null,
@@ -210,6 +212,7 @@ const approveModal = reactive<{
   note: '',
   departments: [],
   loadingDepts: false,
+  loadError: '',
 })
 
 const availableDepartments = computed(() =>
@@ -268,11 +271,14 @@ async function openApproveModal(app: RoleApplicationItem) {
   approveModal.departmentId = ''
   approveModal.note = ''
   approveModal.departments = []
+  approveModal.loadError = ''
   approveModal.loadingDepts = true
   approveModal.open = true
   try {
     const res = await listAllDepartments({ page: 1, page_size: 200 })
-    approveModal.departments = res.data.items
+    approveModal.departments = res.data.items ?? []
+  } catch {
+    approveModal.loadError = '部门列表加载失败，请关闭后重试'
   } finally {
     approveModal.loadingDepts = false
   }

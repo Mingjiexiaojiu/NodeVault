@@ -282,7 +282,7 @@ async def admin_update_node_status(
 @router.get("/departments", response_model=ApiResponse)
 async def list_all_departments(
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(get_superadmin_user),
 ) -> ApiResponse:

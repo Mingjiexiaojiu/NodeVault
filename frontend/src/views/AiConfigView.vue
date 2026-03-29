@@ -279,8 +279,12 @@ async function handleSubmit() {
     showModal.value = false
     await refresh()
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { detail?: string } } }
-    modalError.value = err.response?.data?.detail ?? '操作失败，请重试'
+    const err = e as { uiMessage?: string; response?: { data?: { detail?: string; error?: { message?: string } } } }
+    modalError.value =
+      err.uiMessage ||
+      err.response?.data?.error?.message ||
+      err.response?.data?.detail ||
+      '操作失败，请重试'
   } finally {
     submitting.value = false
   }
