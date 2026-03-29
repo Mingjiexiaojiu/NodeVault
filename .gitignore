@@ -30,3 +30,4 @@ htmlcov/
 Thumbs.db
 /scripts
 /backend/tests
+.vscode

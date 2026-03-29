@@ -11,10 +11,11 @@
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: deploy/Dockerfile
-    image: nodevault-app:latest
+    # 本地开发可用 build，生产环境推荐注释掉 build，改用 image 直接拉取 ACR 镜像
+    # build:
+    #   context: .
+    #   dockerfile: deploy/Dockerfile
+    image: registry.cn-hangzhou.aliyuncs.com/<your-namespace>/nodevault-app:latest
     restart: unless-stopped
     volumes:
       # 后端源码（可热更新；如需自动重载请在 command 中加 --reload）
