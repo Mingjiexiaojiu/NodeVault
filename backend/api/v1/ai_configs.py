@@ -3,8 +3,10 @@
 支持用户配置多个 AI 提供商（openai / claude / custom），
 在生成 SKILL.md 时按需选用。
 """
+import time
 import uuid
 
+import httpx
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, update
@@ -15,7 +17,13 @@ from backend.core.credential_vault import decrypt_value, encrypt_value
 from backend.database.session import get_db
 from backend.models.ai_config import UserAIConfig
 from backend.models.user import User
-from backend.schemas.ai_config import AIConfigCreate, AIConfigResponse, AIConfigUpdate
+from backend.schemas.ai_config import (
+    AIConfigCreate,
+    AIConfigResponse,
+    AIConfigTest,
+    AIConfigTestResult,
+    AIConfigUpdate,
+)
 from backend.schemas.response import ApiResponse
 
 logger = structlog.get_logger()
@@ -58,6 +66,82 @@ async def list_ai_configs(
     )
     configs = list(result.scalars().all())
     return ApiResponse(data=[_to_response(c) for c in configs])
+
+
+@router.post("/test", response_model=ApiResponse)
+async def test_ai_config(
+    payload: AIConfigTest,
+    _current_user: User = Depends(get_current_user),
+) -> ApiResponse:
+    """用提供的凭据向 AI 提供商发送一次最小请求，验证连通性。"""
+    start = time.monotonic()
+
+    async def _elapsed() -> int:
+        return int((time.monotonic() - start) * 1000)
+
+    try:
+        if payload.provider in ("openai", "custom"):
+            base_url = (payload.base_url or "https://api.openai.com/v1").rstrip("/")
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    f"{base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {payload.api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": payload.model,
+                        "messages": [{"role": "user", "content": "hi"}],
+                        "max_tokens": 1,
+                    },
+                )
+        elif payload.provider == "claude":
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": payload.api_key,
+                        "anthropic-version": "2023-06-01",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": payload.model,
+                        "messages": [{"role": "user", "content": "hi"}],
+                        "max_tokens": 1,
+                    },
+                )
+        else:
+            return ApiResponse(data=AIConfigTestResult(ok=False, message="不支持的提供商类型").model_dump())
+
+        latency_ms = await _elapsed()
+        if resp.status_code == 200:
+            return ApiResponse(data=AIConfigTestResult(ok=True, latency_ms=latency_ms).model_dump())
+
+        # 提取错误信息
+        try:
+            body = resp.json()
+            msg = (
+                body.get("error", {}).get("message")
+                or body.get("message")
+                or f"HTTP {resp.status_code}"
+            )
+        except Exception:
+            msg = f"HTTP {resp.status_code}"
+        return ApiResponse(data=AIConfigTestResult(ok=False, message=msg, latency_ms=latency_ms).model_dump())
+
+    except httpx.TimeoutException:
+        return ApiResponse(data=AIConfigTestResult(
+            ok=False, message="连接超时，请检查 Base URL 是否可达", latency_ms=await _elapsed()
+        ).model_dump())
+    except httpx.ConnectError:
+        return ApiResponse(data=AIConfigTestResult(
+            ok=False, message="无法连接到服务器，请检查 Base URL", latency_ms=await _elapsed()
+        ).model_dump())
+    except Exception as exc:
+        logger.warning("ai_config_test_error", error=str(exc))
+        return ApiResponse(data=AIConfigTestResult(
+            ok=False, message=str(exc), latency_ms=await _elapsed()
+        ).model_dump())
 
 
 @router.post("", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)

@@ -59,7 +59,7 @@
             <div class="flex items-center gap-3 mt-0.5 text-xs text-gray-400 flex-wrap">
               <span class="capitalize">{{ providerLabel(cfg.provider) }}</span>
               <span class="font-mono">{{ cfg.model }}</span>
-              <span class="font-mono">{{ cfg.api_key_preview }}</span>
+              <span class="font-mono">{{ cfg.api_key_masked }}</span>
               <span v-if="cfg.base_url" class="font-mono text-gray-300 truncate max-w-[180px]">{{ cfg.base_url }}</span>
             </div>
           </div>
@@ -128,15 +128,67 @@
             />
           </div>
 
-          <!-- API Key -->
+          <!-- API Key + 测试按钮 -->
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-gray-600">API Key <span class="text-red-500">*</span></label>
-            <input
-              v-model="form.api_key"
-              type="password"
-              :placeholder="editingId ? '留空则不更改' : 'sk-...'"
-              class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white"
-            />
+            <label class="text-xs font-medium text-gray-600">
+              API Key <span class="text-red-500">*</span>
+            </label>
+            <div class="flex gap-2">
+              <input
+                v-model="form.api_key"
+                type="password"
+                :placeholder="editingId ? '留空则不更改' : 'sk-...'"
+                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:bg-white"
+              />
+              <!-- 测试按钮 -->
+              <button
+                v-if="showTestButton"
+                type="button"
+                :disabled="testState === 'testing' || !canTest"
+                @click="handleTest"
+                class="shrink-0 px-3 py-2 text-xs font-medium rounded-lg border transition-colors disabled:cursor-not-allowed"
+                :class="testButtonClass"
+              >
+                <span v-if="testState === 'testing'" class="flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                  测试中
+                </span>
+                <span v-else-if="testState === 'success'" class="flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  已通过
+                </span>
+                <span v-else-if="testState === 'failed'" class="flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                  重新测试
+                </span>
+                <span v-else>测试连接</span>
+              </button>
+            </div>
+
+            <!-- 测试结果提示 -->
+            <div v-if="testState === 'success' && testResult" class="flex items-center gap-1.5 text-xs text-green-600">
+              <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              连接成功，响应时间 {{ testResult.latency_ms }}ms
+            </div>
+            <div v-else-if="testState === 'failed' && testResult" class="flex items-start gap-1.5 text-xs text-red-500">
+              <svg class="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              {{ testResult.message || '测试失败，请检查配置' }}
+            </div>
+            <!-- 新建配置的提示 -->
+            <p v-else-if="!editingId && testState === 'idle'" class="text-xs text-amber-600">
+              需先通过连接测试才能保存
+            </p>
           </div>
 
           <!-- Base URL（openai / custom 需要时可选） -->
@@ -169,8 +221,8 @@
         <div class="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
           <button class="px-4 py-2 text-sm text-gray-600 hover:text-gray-900" @click="showModal = false">取消</button>
           <button
-            class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-            :disabled="submitting"
+            class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            :disabled="!canSave"
             @click="handleSubmit"
           >
             {{ submitting ? '保存中...' : (editingId ? '保存' : '创建') }}
@@ -182,14 +234,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   getAIConfigs,
   createAIConfig,
   updateAIConfig,
   deleteAIConfig,
+  testAIConfig,
 } from '@/api/ai-config'
-import type { AIConfigItem, AIProvider } from '@/api/ai-config'
+import type { AIConfigItem, AIConfigTestResult, AIProvider } from '@/api/ai-config'
 
 const configs = ref<AIConfigItem[]>([])
 const loading = ref(true)
@@ -198,6 +251,11 @@ const editingId = ref<string | null>(null)
 const submitting = ref(false)
 const modalError = ref('')
 
+// 测试状态
+type TestState = 'idle' | 'testing' | 'success' | 'failed'
+const testState = ref<TestState>('idle')
+const testResult = ref<AIConfigTestResult | null>(null)
+
 const form = reactive({
   name: '',
   provider: 'openai' as AIProvider,
@@ -205,6 +263,46 @@ const form = reactive({
   api_key: '',
   base_url: '',
   is_default: false,
+})
+
+// 当影响连接的字段变化时，重置测试状态
+watch(
+  () => [form.api_key, form.model, form.base_url, form.provider],
+  () => {
+    testState.value = 'idle'
+    testResult.value = null
+  },
+)
+
+// 是否显示测试按钮：新建时有 api_key；编辑时 api_key 有值（表示要更改）
+const showTestButton = computed(() => {
+  if (!editingId.value) return true         // 新建：始终显示
+  return form.api_key.trim().length > 0     // 编辑：只有填了新 key 才显示
+})
+
+// 测试按钮是否可点击
+const canTest = computed(
+  () => form.model.trim().length > 0 && form.api_key.trim().length > 0,
+)
+
+// 是否允许保存
+const canSave = computed(() => {
+  if (submitting.value) return false
+  // 编辑模式且未填入新 api_key → 无需测试，直接允许保存
+  if (editingId.value && !form.api_key.trim()) return true
+  // 其他情况需通过测试
+  return testState.value === 'success'
+})
+
+// 测试按钮样式
+const testButtonClass = computed(() => {
+  if (testState.value === 'success')
+    return 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+  if (testState.value === 'failed')
+    return 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'
+  if (testState.value === 'testing')
+    return 'border-gray-200 bg-gray-50 text-gray-400'
+  return 'border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100'
 })
 
 const modelPlaceholder = computed(() => {
@@ -230,6 +328,8 @@ function openCreate() {
   editingId.value = null
   Object.assign(form, { name: '', provider: 'openai', model: '', api_key: '', base_url: '', is_default: false })
   modalError.value = ''
+  testState.value = 'idle'
+  testResult.value = null
   showModal.value = true
 }
 
@@ -244,7 +344,30 @@ function openEdit(cfg: AIConfigItem) {
     is_default: cfg.is_default,
   })
   modalError.value = ''
+  testState.value = 'idle'
+  testResult.value = null
   showModal.value = true
+}
+
+async function handleTest() {
+  if (!canTest.value) return
+  modalError.value = ''
+  testState.value = 'testing'
+  testResult.value = null
+  try {
+    const result = await testAIConfig({
+      provider: form.provider,
+      model: form.model,
+      api_key: form.api_key,
+      base_url: form.base_url || undefined,
+    })
+    testResult.value = result
+    testState.value = result.ok ? 'success' : 'failed'
+  } catch (e: unknown) {
+    const err = e as { uiMessage?: string }
+    testResult.value = { ok: false, message: err.uiMessage || '测试请求失败，请稍后重试' }
+    testState.value = 'failed'
+  }
 }
 
 async function handleSubmit() {

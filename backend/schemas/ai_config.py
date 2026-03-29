@@ -8,6 +8,19 @@ from pydantic import BaseModel, field_validator
 ProviderType = Literal["openai", "claude", "custom"]
 
 
+class AIConfigTest(BaseModel):
+    provider: ProviderType
+    model: str
+    api_key: str
+    base_url: str | None = None
+
+
+class AIConfigTestResult(BaseModel):
+    ok: bool
+    message: str | None = None
+    latency_ms: int | None = None
+
+
 class AIConfigCreate(BaseModel):
     name: str
     provider: ProviderType = "openai"
