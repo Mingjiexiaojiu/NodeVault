@@ -243,7 +243,7 @@
                   <p class="text-sm font-medium text-gray-900">{{ cfg.name }}</p>
                   <span v-if="cfg.is_default" class="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200">默认</span>
                 </div>
-                <p class="text-xs text-gray-400 font-mono truncate">{{ cfg.model }} · {{ cfg.api_key_preview }}</p>
+                <p class="text-xs text-gray-400 font-mono truncate">{{ cfg.model }} · {{ cfg.api_key_masked }}</p>
               </div>
             </label>
           </div>
