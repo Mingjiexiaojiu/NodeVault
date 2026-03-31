@@ -52,9 +52,6 @@ class Department(Base):
     nodes: Mapped[list["Node"]] = relationship(  # noqa: F821
         "Node", back_populates="department"
     )
-    skills: Mapped[list["Skill"]] = relationship(  # noqa: F821
-        "Skill", back_populates="department"
-    )
     members: Mapped[list["DepartmentMember"]] = relationship(
         "DepartmentMember", back_populates="department", cascade="all, delete-orphan"
     )

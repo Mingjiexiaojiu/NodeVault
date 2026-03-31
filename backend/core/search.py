@@ -54,6 +54,15 @@ class NodeSearchIndex:
         except Exception:
             logger.warning("meilisearch_delete_failed", node_id=str(node_id))
 
+    def delete_all_documents(self) -> None:
+        """清空索引中所有文档（等待任务完成）"""
+        try:
+            client = _get_client()
+            task = client.index(_INDEX_NAME).delete_all_documents()
+            client.wait_for_task(task.task_uid, timeout_in_ms=30_000)
+        except Exception:
+            logger.warning("meilisearch_delete_all_failed")
+
     def search(
         self,
         query: str = "",

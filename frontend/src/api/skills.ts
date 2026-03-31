@@ -6,7 +6,6 @@ export interface SkillCreate {
   name: string
   display_name?: string
   description?: string
-  department_id: string
 }
 
 export interface SkillUpdate {
@@ -47,7 +46,6 @@ export interface SkillItem {
   name: string
   display_name: string | null
   description: string | null
-  department_id: string
   owner_id: string
   status: string
   is_stale: boolean
@@ -70,7 +68,7 @@ export interface GenerateResult {
 
 // ---------- API functions ----------
 
-export async function getSkills(params?: { department_id?: string; skip?: number; limit?: number }): Promise<SkillItem[]> {
+export async function getSkills(params?: { skip?: number; limit?: number }): Promise<SkillItem[]> {
   const res = await http.get('/skills', { params })
   return res.data
 }

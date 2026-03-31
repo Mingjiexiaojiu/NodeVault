@@ -199,7 +199,12 @@ class NodeRegistry:
                 select(Node)
                 .where(Node.department_id.in_(dept_ids))
                 .where(Node.status != NodeStatus.ARCHIVED.value)
-                .options(selectinload(Node.tags), selectinload(Node.department), selectinload(Node.category_rel))
+                .options(
+                    selectinload(Node.tags),
+                    selectinload(Node.department),
+                    selectinload(Node.category_rel),
+                    selectinload(Node.versions),
+                )
             )
         else:
             # public/internal nodes are visible to all authenticated users; private nodes only to members
@@ -213,7 +218,12 @@ class NodeRegistry:
                     )
                 )
                 .where(Node.status != NodeStatus.ARCHIVED.value)
-                .options(selectinload(Node.tags), selectinload(Node.department), selectinload(Node.category_rel))
+                .options(
+                    selectinload(Node.tags),
+                    selectinload(Node.department),
+                    selectinload(Node.category_rel),
+                    selectinload(Node.versions),
+                )
             )
         if category_id:
             stmt = stmt.where(Node.category_id == category_id)

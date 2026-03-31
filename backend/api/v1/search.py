@@ -102,6 +102,9 @@ async def reindex_nodes(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if current_user.role > 1:
+        raise HTTPException(status_code=403, detail="仅管理员可执行此操作")
+
     result = await db.execute(
         select(Node).options(selectinload(Node.tags), selectinload(Node.category_rel))
         .where(Node.status != "archived")
@@ -109,6 +112,7 @@ async def reindex_nodes(
     nodes = list(result.scalars().all())
 
     index = NodeSearchIndex()
+    index.delete_all_documents()  # 等待清空完成后再写入
     for node in nodes:
         index.upsert_node(
             {

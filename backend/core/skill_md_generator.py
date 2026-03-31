@@ -18,7 +18,7 @@ from backend.models.skill import Skill
 from backend.models.skill_node import SkillNode
 
 
-_LLM_TIMEOUT = 30  # seconds
+_LLM_TIMEOUT = 120  # seconds
 
 
 @dataclass
@@ -69,14 +69,12 @@ async def _call_claude(prompt: str, cfg: LLMConfig) -> str:
     client = anthropic.AsyncAnthropic(
         api_key=cfg.api_key,
         base_url=cfg.base_url or None,
-    )
-    message = await asyncio.wait_for(
-        client.messages.create(
-            model=cfg.model,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
-        ),
         timeout=_LLM_TIMEOUT,
+    )
+    message = await client.messages.create(
+        model=cfg.model,
+        max_tokens=4096,
+        messages=[{"role": "user", "content": prompt}],
     )
     return message.content[0].text
 
@@ -87,14 +85,12 @@ async def _call_openai(prompt: str, cfg: LLMConfig) -> str:
     client = AsyncOpenAI(
         api_key=cfg.api_key,
         base_url=cfg.base_url or None,
-    )
-    response = await asyncio.wait_for(
-        client.chat.completions.create(
-            model=cfg.model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=4096,
-        ),
         timeout=_LLM_TIMEOUT,
+    )
+    response = await client.chat.completions.create(
+        model=cfg.model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=4096,
     )
     return response.choices[0].message.content
 
@@ -107,15 +103,10 @@ async def generate_skill_md(
     """生成 SKILL.md 草稿，返回 {skill_md, suggested_version}。
 
     llm_config: 用户选定的 AI 配置；为 None 时回落到环境变量（LLM_PROVIDER）。
-    使用 SELECT ... FOR UPDATE NOWAIT 防止并发触发。
     """
-    # Row-level lock (NOWAIT → raise if already locked)
-    try:
-        result = await db.execute(
-            select(Skill).where(Skill.id == skill_id).with_for_update(nowait=True)
-        )
-    except Exception:
-        raise RuntimeError("该技能集正在生成中，请稍后重试")
+    result = await db.execute(
+        select(Skill).where(Skill.id == skill_id)
+    )
 
     skill = result.scalar_one_or_none()
     if skill is None:
@@ -166,16 +157,22 @@ async def generate_skill_md(
     if llm_config is None:
         provider = os.environ.get("LLM_PROVIDER", "claude").lower()
         if provider == "openai":
+            api_key = os.environ.get("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("未配置 AI 提供商，请先在「个人设置 → AI 配置」中添加 API Key")
             llm_config = LLMConfig(
                 provider="openai",
                 model=os.environ.get("OPENAI_MODEL", "gpt-4o"),
-                api_key=os.environ["OPENAI_API_KEY"],
+                api_key=api_key,
             )
         else:
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
+            if not api_key:
+                raise ValueError("未配置 AI 提供商，请先在「个人设置 → AI 配置」中添加 API Key")
             llm_config = LLMConfig(
                 provider="claude",
                 model=os.environ.get("ANTHROPIC_MODEL", "claude-opus-4-5"),
-                api_key=os.environ["ANTHROPIC_API_KEY"],
+                api_key=api_key,
             )
 
     if llm_config.provider == "claude":

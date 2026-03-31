@@ -89,3 +89,15 @@ async def get_superadmin_user(
             detail="Superadmin required",
         )
     return current_user
+
+
+async def get_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Dependency that requires superadmin (role == 0) or manager (role == 1)."""
+    if current_user.role > 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin or superadmin required",
+        )
+    return current_user

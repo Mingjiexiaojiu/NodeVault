@@ -261,7 +261,6 @@ CREATE TABLE "public"."skills" (
   "name" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
   "display_name" varchar(256) COLLATE "pg_catalog"."default",
   "description" text COLLATE "pg_catalog"."default",
-  "department_id" uuid NOT NULL,
   "owner_id" uuid NOT NULL,
   "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'active'::character varying,
   "is_stale" bool NOT NULL DEFAULT false,
@@ -578,9 +577,6 @@ ALTER TABLE "public"."skill_versions" ADD CONSTRAINT "skill_versions_pkey" PRIMA
 -- ----------------------------
 -- Indexes structure for table skills
 -- ----------------------------
-CREATE INDEX "ix_skills_department_id" ON "public"."skills" USING btree (
-  "department_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
-);
 CREATE INDEX "ix_skills_name" ON "public"."skills" USING btree (
   "name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
 );
@@ -591,7 +587,7 @@ CREATE INDEX "ix_skills_status" ON "public"."skills" USING btree (
 -- ----------------------------
 -- Uniques structure for table skills
 -- ----------------------------
-ALTER TABLE "public"."skills" ADD CONSTRAINT "uq_skill_name_department" UNIQUE ("name", "department_id");
+ALTER TABLE "public"."skills" ADD CONSTRAINT "uq_skill_name" UNIQUE ("name");
 
 -- ----------------------------
 -- Primary Key structure for table skills
@@ -717,7 +713,6 @@ ALTER TABLE "public"."skill_versions" ADD CONSTRAINT "skill_versions_skill_id_fk
 -- ----------------------------
 -- Foreign Keys structure for table skills
 -- ----------------------------
-ALTER TABLE "public"."skills" ADD CONSTRAINT "skills_department_id_fkey" FOREIGN KEY ("department_id") REFERENCES "public"."departments" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."skills" ADD CONSTRAINT "skills_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------

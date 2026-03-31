@@ -131,13 +131,12 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getSkills, createSkill } from '@/api/skills'
 import type { SkillItem } from '@/api/skills'
-import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
-const authStore = useAuthStore()
 
 const skills = ref<SkillItem[]>([])
 const loading = ref(true)
+
 const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref('')
@@ -163,21 +162,12 @@ async function handleCreate() {
     return
   }
 
-  // 从用户已加入的部门中取第一个
-  const departmentId = authStore.user?.departments?.[0]?.id
-
-  if (!departmentId) {
-    createError.value = '获取部门 ID 失败，请先加入一个部门后再试'
-    return
-  }
-
   creating.value = true
   try {
     const skill = await createSkill({
       name: createForm.name,
       display_name: createForm.display_name || undefined,
       description: createForm.description || undefined,
-      department_id: departmentId,
     })
     showCreate.value = false
     router.push(`/skills/${skill.id}`)

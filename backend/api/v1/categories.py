@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.auth.deps import get_current_user, get_superadmin_user
+from backend.auth.deps import get_current_user, get_admin_user, get_superadmin_user
 from backend.database.session import get_db
 from backend.models.category import Category
 from backend.models.user import User
@@ -43,7 +43,7 @@ async def get_category(
 async def create_category(
     payload: CategoryCreate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_superadmin_user),
+    user: User = Depends(get_admin_user),
 ) -> CategoryRead:
     # Check name uniqueness
     existing = await db.execute(select(Category).where(Category.name == payload.name))
@@ -69,7 +69,7 @@ async def update_category(
     category_id: uuid.UUID,
     payload: CategoryUpdate,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_superadmin_user),
+    user: User = Depends(get_admin_user),
 ) -> CategoryRead:
     result = await db.execute(select(Category).where(Category.id == category_id))
     cat = result.scalar_one_or_none()
@@ -92,7 +92,7 @@ async def update_category(
 async def delete_category(
     category_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_superadmin_user),
+    user: User = Depends(get_admin_user),
 ) -> None:
     result = await db.execute(select(Category).where(Category.id == category_id))
     cat = result.scalar_one_or_none()

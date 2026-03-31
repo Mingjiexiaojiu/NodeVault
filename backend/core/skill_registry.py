@@ -9,7 +9,6 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from backend.models.department import Department, DepartmentMember
 from backend.models.node import Node, NodeVersion
 from backend.models.skill import Skill, SkillVersion
 from backend.models.skill_node import SkillNode
@@ -25,24 +24,12 @@ class SkillRegistry:
     # Helpers
     # ------------------------------------------------------------------
 
-    async def _get_department(self, department_id: uuid.UUID) -> Department:
-        result = await self.db.execute(
-            select(Department).where(Department.id == department_id)
-        )
-        dept = result.scalar_one_or_none()
-        if dept is None:
-            raise ValueError("指定的部门不存在")
-        return dept
-
-    async def _check_member(self, department_id: uuid.UUID, user: User) -> None:
-        result = await self.db.execute(
-            select(DepartmentMember).where(
-                DepartmentMember.department_id == department_id,
-                DepartmentMember.user_id == user.id,
-            )
-        )
-        if result.scalar_one_or_none() is None:
-            raise PermissionError("您不是该部门的成员")
+    async def _check_owner(self, skill: Skill, user: User) -> None:
+        """检查用户是否为技能创建者或超管。"""
+        if user.role == 0:
+            return  # 超管可操作所有技能
+        if skill.owner_id != user.id:
+            raise PermissionError("仅技能创建者或超管可操作此技能")
 
     async def _get_skill(self, skill_id: uuid.UUID) -> Skill | None:
         result = await self.db.execute(
@@ -60,25 +47,18 @@ class SkillRegistry:
     # ------------------------------------------------------------------
 
     async def create_skill(self, payload: SkillCreate, owner: User) -> Skill:
-        """创建技能集，校验 department 成员资格和 name 唯一性。"""
-        await self._get_department(payload.department_id)
-        await self._check_member(payload.department_id, owner)
-
+        """创建技能集，校验 name 全局唯一性。"""
         # Uniqueness check
         existing = await self.db.execute(
-            select(Skill).where(
-                Skill.name == payload.name,
-                Skill.department_id == payload.department_id,
-            )
+            select(Skill).where(Skill.name == payload.name)
         )
         if existing.scalar_one_or_none() is not None:
-            raise ValueError(f"该部门下已存在名为 '{payload.name}' 的技能集")
+            raise ValueError(f"已存在名为 '{payload.name}' 的技能集")
 
         skill = Skill(
             name=payload.name,
             display_name=payload.display_name,
             description=payload.description,
-            department_id=payload.department_id,
             owner_id=owner.id,
         )
         self.db.add(skill)
@@ -88,30 +68,18 @@ class SkillRegistry:
 
     async def list_skills(
         self,
-        department_id: uuid.UUID | None,
         user: User,
         skip: int = 0,
         limit: int = 50,
     ) -> list[tuple[Skill, int, str | None]]:
         """列出技能，返回 (skill, node_count, latest_version) 元组列表。"""
-        # Determine accessible department IDs
-        if department_id:
-            dept_ids = [department_id]
-        else:
-            membership_result = await self.db.execute(
-                select(DepartmentMember.department_id).where(DepartmentMember.user_id == user.id)
-            )
-            dept_ids = list(membership_result.scalars().all())
-            if not dept_ids:
-                return []
-
         result = await self.db.execute(
             select(Skill)
             .options(
                 selectinload(Skill.skill_nodes).selectinload(SkillNode.node).selectinload(Node.category_rel),
                 selectinload(Skill.versions),
             )
-            .where(Skill.department_id.in_(dept_ids), Skill.status != "archived")
+            .where(Skill.status != "archived")
             .offset(skip)
             .limit(limit)
         )
@@ -138,7 +106,7 @@ class SkillRegistry:
         skill = await self._get_skill(skill_id)
         if skill is None:
             raise ValueError("技能集不存在")
-        await self._check_member(skill.department_id, owner)
+        await self._check_owner(skill, owner)
 
         if payload.display_name is not None:
             skill.display_name = payload.display_name
@@ -155,7 +123,7 @@ class SkillRegistry:
         skill = await self._get_skill(skill_id)
         if skill is None:
             raise ValueError("技能集不存在")
-        await self._check_member(skill.department_id, owner)
+        await self._check_owner(skill, owner)
 
         await self.db.execute(
             update(Skill).where(Skill.id == skill_id).values(status="archived")
@@ -173,7 +141,7 @@ class SkillRegistry:
         skill = await self._get_skill(skill_id)
         if skill is None:
             raise ValueError("技能集不存在")
-        await self._check_member(skill.department_id, owner)
+        await self._check_owner(skill, owner)
 
         # Check version uniqueness within skill
         existing = await self.db.execute(

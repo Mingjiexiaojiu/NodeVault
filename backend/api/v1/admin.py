@@ -420,14 +420,9 @@ async def list_all_skills(
     result = await db.execute(stmt)
     skills = result.scalars().all()
 
-    dept_ids = list({s.department_id for s in skills})
     owner_ids = list({s.owner_id for s in skills})
-    dept_map: dict[uuid.UUID, str] = {}
     owner_map: dict[uuid.UUID, str] = {}
 
-    if dept_ids:
-        dept_result = await db.execute(select(Department.id, Department.slug).where(Department.id.in_(dept_ids)))
-        dept_map = {row.id: row.slug for row in dept_result}
     if owner_ids:
         u_result = await db.execute(select(User.id, User.username).where(User.id.in_(owner_ids)))
         owner_map = {row.id: row.username for row in u_result}
@@ -437,8 +432,6 @@ async def list_all_skills(
             id=s.id,
             name=s.name,
             display_name=s.display_name,
-            department_id=s.department_id,
-            department_slug=dept_map.get(s.department_id),
             owner_id=s.owner_id,
             owner_username=owner_map.get(s.owner_id),
             status=s.status,

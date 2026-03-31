@@ -17,6 +17,7 @@ from backend.auth.deps import get_current_user
 from backend.core.openapi_mapper import parse_operations
 from backend.core.probe import probe_spec, probe_with_auth, _parse_spec
 from backend.core.registry import NodeRegistry
+from backend.core.search import NodeSearchIndex
 from backend.database.session import get_db
 from backend.models.discovery import DiscoverySession
 from backend.models.department import Department, DepartmentMember
@@ -221,6 +222,24 @@ async def batch_import_nodes(
             sess.imported_count = (sess.imported_count or 0) + len(nodes)
             sess.completed_at = datetime.utcnow()
             await db.commit()
+
+    # 同步到搜索索引
+    search_index = NodeSearchIndex()
+    for n in nodes:
+        try:
+            search_index.upsert_node({
+                "id": str(n.id),
+                "name": n.name,
+                "display_name": n.display_name,
+                "description": n.description,
+                "category": n.category_rel.display_name if n.category_rel else "",
+                "status": n.status,
+                "department_id": str(n.department_id),
+                "invocation_count": n.invocation_count,
+                "tags": [t.tag for t in n.tags],
+            })
+        except Exception:
+            pass
 
     results = [BatchImportResultItem(name=n.name, node_id=n.id) for n in nodes]
     return BatchImportResponse(imported=len(results), nodes=results)

@@ -139,6 +139,24 @@ async def batch_create_nodes(
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
 
+    # 同步到搜索索引
+    search_index = NodeSearchIndex()
+    for n in nodes:
+        try:
+            search_index.upsert_node({
+                "id": str(n.id),
+                "name": n.name,
+                "display_name": n.display_name,
+                "description": n.description,
+                "category": n.category_rel.display_name if n.category_rel else "",
+                "status": n.status,
+                "department_id": str(n.department_id),
+                "invocation_count": n.invocation_count,
+                "tags": [t.tag for t in n.tags],
+            })
+        except Exception as exc:
+            logger.warning("search_index_sync_failed", node_id=str(n.id), error=str(exc))
+
     return ApiResponse(
         data={"imported": len(nodes), "node_ids": [str(n.id) for n in nodes]},
         message=f"{len(nodes)} 个 Node 批量创建成功",

@@ -83,8 +83,6 @@ class AdminSkillListItem(BaseModel):
     id: uuid.UUID
     name: str
     display_name: str | None = None
-    department_id: uuid.UUID
-    department_slug: str | None = None
     owner_id: uuid.UUID
     owner_username: str | None = None
     status: str
