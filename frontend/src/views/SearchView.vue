@@ -116,8 +116,8 @@
           </div>
           <div class="flex items-center gap-3 shrink-0 ml-4">
             <!-- 归属信息 -->
-            <div v-if="node.department_slug || node.owner_username" class="hidden md:flex items-center gap-1.5 text-xs text-gray-400">
-              <span v-if="node.department_slug" class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full">{{ node.department_slug }}</span>
+            <div v-if="node.organization_name || node.team_name || node.owner_username" class="hidden md:flex items-center gap-1.5 text-xs text-gray-400">
+              <span v-if="node.organization_name || node.team_name" class="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full">{{ [node.organization_name, node.team_name].filter(Boolean).join('/') }}</span>
               <span v-if="node.owner_username" class="text-gray-400">{{ node.owner_username }}</span>
             </div>
       <!-- 结果卡片中的标签改为可点击链接 -->

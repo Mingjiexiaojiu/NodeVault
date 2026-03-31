@@ -84,7 +84,7 @@
             <td class="px-6 py-4"><StatusBadge :status="node.status" /></td>
             <td class="px-6 py-4">
               <div class="flex flex-col">
-                <span class="text-xs text-indigo-600 font-medium">{{ node.department_slug || '—' }}</span>
+                <span class="text-xs text-indigo-600 font-medium">{{ [node.organization_name, node.team_name].filter(Boolean).join('/') || '—' }}</span>
                 <span class="text-xs text-gray-400">{{ node.owner_username || '—' }}</span>
               </div>
             </td>

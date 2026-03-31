@@ -39,8 +39,8 @@ class TokenResponse(BaseModel):
 
 class UserDepartmentBrief(BaseModel):
     id: uuid.UUID
-    slug: str
-    display_name: str | None = None
+    organization_name: str | None = None
+    team_name: str | None = None
     role: str
 
 

@@ -16,8 +16,8 @@ export interface RegisterPayload {
 
 export interface UserDepartmentBrief {
   id: string
-  slug: string
-  display_name: string | null
+  organization_name: string
+  team_name: string
   role: string
 }
 

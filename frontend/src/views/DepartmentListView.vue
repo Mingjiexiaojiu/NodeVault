@@ -46,13 +46,13 @@
         <div class="flex items-start justify-between mb-3">
           <div class="flex items-center gap-3">
             <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-lg">
-              {{ (dept.display_name || dept.slug).charAt(0).toUpperCase() }}
+              {{ dept.team_name.charAt(0).toUpperCase() }}
             </div>
             <div>
               <h3 class="font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
-                {{ dept.display_name || dept.slug }}
+                {{ dept.team_name }}
               </h3>
-              <span class="text-xs text-gray-400">{{ dept.slug }}</span>
+              <span class="text-xs text-gray-400">{{ dept.organization_name }}</span>
             </div>
           </div>
           <span
@@ -88,17 +88,17 @@
         <form @submit.prevent="handleCreate">
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">部门标识 (slug)</label>
-              <input v-model="form.slug" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" placeholder="如 data-team" required />
-              <p class="text-xs text-gray-400 mt-1">小写字母、数字、连字符，2-64位</p>
-            </div>
-            <div>
               <label class="block text-sm font-medium text-gray-700 mb-1">部门名称</label>
-              <input v-model="form.display_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" placeholder="如 数据团队" required />
+              <input v-model="form.org_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" placeholder="如 数据中心" required />
+              <p class="text-xs text-gray-400 mt-1">可选择已有部门或输入新部门名称</p>
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">部门简介</label>
-              <textarea v-model="form.description" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" placeholder="描述部门职责与能力方向..."></textarea>
+              <label class="block text-sm font-medium text-gray-700 mb-1">团队名称</label>
+              <input v-model="form.team_name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" placeholder="如 数据分析组" required />
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">团队简介</label>
+              <textarea v-model="form.description" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" placeholder="描述团队职责与能力方向..."></textarea>
             </div>
           </div>
           <div v-if="createError" class="mt-3 text-sm text-red-600">{{ createError }}</div>
@@ -153,7 +153,7 @@ async function loadDepartments() {
 const showCreate = ref(false)
 const creating = ref(false)
 const createError = ref('')
-const form = ref({ slug: '', display_name: '', description: '' })
+const form = ref({ org_name: '', team_name: '', description: '' })
 
 async function handleCreate() {
   creating.value = true
@@ -161,7 +161,7 @@ async function handleCreate() {
   try {
     await createDepartment(form.value)
     showCreate.value = false
-    form.value = { slug: '', display_name: '', description: '' }
+    form.value = { org_name: '', team_name: '', description: '' }
     // 刷新列表 + 用户信息
     await Promise.all([loadDepartments(), authStore.fetchMe()])
   } catch (e: any) {

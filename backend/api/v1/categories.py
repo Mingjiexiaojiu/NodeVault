@@ -45,13 +45,12 @@ async def create_category(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_admin_user),
 ) -> CategoryRead:
-    # Check name uniqueness
-    existing = await db.execute(select(Category).where(Category.name == payload.name))
+    # Check display_name uniqueness
+    existing = await db.execute(select(Category).where(Category.display_name == payload.display_name))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="分类名称已存在")
 
     cat = Category(
-        name=payload.name,
         display_name=payload.display_name,
         icon=payload.icon,
         sort_order=payload.sort_order,
@@ -77,6 +76,15 @@ async def update_category(
         raise HTTPException(status_code=404, detail="分类不存在")
 
     if payload.display_name is not None:
+        # Check uniqueness
+        dup = await db.execute(
+            select(Category).where(
+                Category.display_name == payload.display_name,
+                Category.id != category_id,
+            )
+        )
+        if dup.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="分类名称已存在")
         cat.display_name = payload.display_name
     if payload.icon is not None:
         cat.icon = payload.icon

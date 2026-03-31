@@ -25,10 +25,10 @@ class NodeSearchIndex:
         index = client.index(_INDEX_NAME)
 
         index.update_searchable_attributes(
-            ["name", "display_name", "description", "tags", "category"]
+            ["name", "display_name", "description", "tags", "category", "organization_name", "team_name"]
         )
         index.update_filterable_attributes(
-            ["category", "status", "department_id", "tags"]
+            ["category", "status", "department_id", "tags", "organization_name", "team_name"]
         )
         index.update_sortable_attributes(
             ["created_at", "updated_at", "invocation_count"]
@@ -118,6 +118,9 @@ class NodeSearchIndex:
 
 def _node_to_search_doc(node) -> dict:
     """将 Node ORM 对象转为搜索文档"""
+    dept = node.department
+    org_name = dept.organization.name if dept and dept.organization else None
+    team_name = dept.team_name if dept else None
     return {
         "id": str(node.id),
         "name": node.name,
@@ -126,6 +129,8 @@ def _node_to_search_doc(node) -> dict:
         "category": node.category_rel.display_name if node.category_rel else None,
         "status": node.status,
         "department_id": str(node.department_id),
+        "organization_name": org_name,
+        "team_name": team_name,
         "invocation_count": node.invocation_count,
         "tags": [t.tag for t in node.tags],
         "created_at": node.created_at.isoformat() if node.created_at else None,
@@ -143,11 +148,16 @@ async def sync_search_index():
     from sqlalchemy.orm import selectinload
     from backend.database.session import async_session_factory
     from backend.models.node import Node
+    from backend.models.department import Department
 
     async with async_session_factory() as db:
         result = await db.execute(
             select(Node)
-            .options(selectinload(Node.tags), selectinload(Node.category_rel))
+            .options(
+                selectinload(Node.tags),
+                selectinload(Node.category_rel),
+                selectinload(Node.department).selectinload(Department.organization),
+            )
             .where(Node.status != "archived")
         )
         nodes = list(result.scalars().all())

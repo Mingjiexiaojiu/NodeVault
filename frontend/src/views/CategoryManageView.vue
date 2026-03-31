@@ -30,8 +30,7 @@
         <thead class="bg-gray-50/80 border-b border-gray-100">
           <tr>
             <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">排序</th>
-            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">标识</th>
-            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">显示名称</th>
+            <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">名称</th>
             <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">图标</th>
             <th class="px-6 py-3.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">类型</th>
             <th class="px-6 py-3.5 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">操作</th>
@@ -40,7 +39,6 @@
         <tbody class="divide-y divide-gray-100">
           <tr v-for="cat in categories" :key="cat.id" class="hover:bg-indigo-50/40 transition-colors">
             <td class="px-6 py-4 text-gray-500 font-mono text-xs">{{ cat.sort_order }}</td>
-            <td class="px-6 py-4 font-mono text-gray-700">{{ cat.name }}</td>
             <td class="px-6 py-4 font-medium text-gray-900">{{ cat.display_name }}</td>
             <td class="px-6 py-4 text-lg">{{ cat.icon || '—' }}</td>
             <td class="px-6 py-4">
@@ -80,19 +78,11 @@
           {{ editingCat ? '编辑分类' : '新建分类' }}
         </h3>
         <form class="space-y-4" @submit.prevent="handleSave">
-          <div v-if="!editingCat" class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">标识 (name)</label>
-            <input
-              v-model="dialogForm.name"
-              placeholder="snake_case 格式"
-              class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
-            />
-          </div>
           <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">显示名称</label>
+            <label class="text-xs font-semibold text-gray-600 uppercase tracking-wide">名称</label>
             <input
               v-model="dialogForm.display_name"
-              placeholder="中文名称"
+              placeholder="分类名称"
               class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
             />
           </div>
@@ -140,7 +130,6 @@ const dialogSaving = ref(false)
 const dialogError = ref('')
 
 const dialogForm = reactive({
-  name: '',
   display_name: '',
   icon: '',
   sort_order: 0,
@@ -158,7 +147,6 @@ async function fetchCategories() {
 
 function startEdit(cat: Category) {
   editingCat.value = cat
-  dialogForm.name = cat.name
   dialogForm.display_name = cat.display_name
   dialogForm.icon = cat.icon || ''
   dialogForm.sort_order = cat.sort_order
@@ -168,7 +156,6 @@ function closeDialog() {
   showCreateDialog.value = false
   editingCat.value = null
   dialogError.value = ''
-  dialogForm.name = ''
   dialogForm.display_name = ''
   dialogForm.icon = ''
   dialogForm.sort_order = 0
@@ -185,12 +172,11 @@ async function handleSave() {
         sort_order: dialogForm.sort_order,
       })
     } else {
-      if (!dialogForm.name || !dialogForm.display_name) {
-        dialogError.value = '标识和显示名称为必填项'
+      if (!dialogForm.display_name) {
+        dialogError.value = '名称为必填项'
         return
       }
       await createCategory({
-        name: dialogForm.name,
         display_name: dialogForm.display_name,
         icon: dialogForm.icon || undefined,
         sort_order: dialogForm.sort_order,

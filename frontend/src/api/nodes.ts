@@ -41,7 +41,8 @@ export interface NodeItem {
   owner_id: string
   owner_username: string | null
   department_id: string
-  department_slug: string | null
+  organization_name: string | null
+  team_name: string | null
   credential_id: string | null
   source_credential_id: string | null
   source_path: string | null

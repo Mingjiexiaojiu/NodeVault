@@ -48,7 +48,8 @@ class AdminNodeListItem(BaseModel):
     name: str
     display_name: str | None = None
     department_id: uuid.UUID
-    department_slug: str | None = None
+    organization_name: str | None = None
+    team_name: str | None = None
     owner_id: uuid.UUID
     owner_username: str | None = None
     category_id: uuid.UUID
@@ -67,8 +68,8 @@ class AdminNodeStatusUpdate(BaseModel):
 
 class AdminDepartmentListItem(BaseModel):
     id: uuid.UUID
-    slug: str
-    display_name: str | None = None
+    organization_name: str | None = None
+    team_name: str | None = None
     owner_id: uuid.UUID
     owner_username: str | None = None
     supervisor_username: str | None = None
@@ -115,7 +116,8 @@ class TopNodeItem(BaseModel):
     id: uuid.UUID
     name: str
     display_name: str | None = None
-    department_slug: str | None = None
+    organization_name: str | None = None
+    team_name: str | None = None
     owner_username: str | None = None
     invocation_count: int
 

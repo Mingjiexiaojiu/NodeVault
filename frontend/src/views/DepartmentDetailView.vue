@@ -9,20 +9,20 @@
         <div class="flex items-start justify-between">
           <div class="flex items-center gap-4">
             <div class="w-14 h-14 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-2xl">
-              {{ (dept.display_name || dept.slug).charAt(0).toUpperCase() }}
+              {{ dept.team_name.charAt(0).toUpperCase() }}
             </div>
             <div>
-              <h1 class="text-2xl font-bold text-gray-900">{{ dept.display_name || dept.slug }}</h1>
+              <h1 class="text-2xl font-bold text-gray-900">{{ dept.team_name }}</h1>
               <div class="flex items-center gap-3 mt-1 text-sm text-gray-500">
-                <span class="font-mono bg-gray-100 px-2 py-0.5 rounded text-xs">{{ dept.slug }}</span>
-                <span>创建者：<strong class="text-gray-700">{{ dept.owner_username }}</strong></span>
+                <span class="font-mono bg-gray-100 px-2 py-0.5 rounded text-xs">{{ dept.organization_name }}</span>
+                <span>拥有者：<strong class="text-gray-700">{{ dept.owner_username }}</strong></span>
                 <span>{{ formatDate(dept.created_at) }}</span>
               </div>
             </div>
           </div>
           <div class="flex items-center gap-2">
             <span v-if="myRole" class="px-3 py-1 text-xs rounded-full" :class="myRole === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-green-50 text-green-600'">
-              {{ myRole === 'admin' ? '管理员' : '成员' }}
+              {{ myRole === 'admin' ? '主管' : '成员' }}
             </span>
             <button v-if="isAdmin" @click="editMode ? (editMode = false) : startEdit()" class="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
               {{ editMode ? '取消编辑' : '编辑部门' }}
@@ -34,11 +34,11 @@
         <div v-if="editMode" class="mt-4 pt-4 border-t border-gray-100">
           <div class="space-y-3">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">部门名称</label>
-              <input v-model="editForm.display_name" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" />
+              <label class="block text-sm font-medium text-gray-700 mb-1">团队名称</label>
+              <input v-model="editForm.team_name" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-1">部门简介</label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">团队简介</label>
               <textarea v-model="editForm.description" rows="3" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"></textarea>
             </div>
             <button @click="handleUpdate" :disabled="saving" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50">
@@ -102,7 +102,7 @@
               <label class="block text-xs font-medium text-gray-500 mb-1">角色</label>
               <select v-model="newMemberRole" class="px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
                 <option value="member">成员</option>
-                <option value="admin">管理员</option>
+                <option value="admin">主管</option>
               </select>
             </div>
             <button type="submit" :disabled="addingMember || !newMemberUsername.trim()" class="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50">
@@ -137,7 +137,7 @@
                 </td>
                 <td class="px-6 py-3.5">
                   <span class="px-2 py-0.5 text-xs rounded-full" :class="m.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'">
-                    {{ m.role === 'admin' ? '管理员' : '成员' }}
+                    {{ m.role === 'admin' ? '主管' : '成员' }}
                   </span>
                 </td>
                 <td class="px-6 py-3.5 text-sm text-gray-500">{{ formatDate(m.joined_at) }}</td>
@@ -147,7 +147,7 @@
                     @click="handleRemoveMember(m.user_id, m.username)"
                     class="text-xs text-red-500 hover:text-red-700"
                   >移除</button>
-                  <span v-else class="text-xs text-gray-300">创建者</span>
+                  <span v-else class="text-xs text-gray-300">拥有者</span>
                 </td>
               </tr>
             </tbody>
@@ -264,11 +264,11 @@ async function loadDept() {
 // ── 编辑部门 ──
 const editMode = ref(false)
 const saving = ref(false)
-const editForm = ref({ display_name: '', description: '' })
+const editForm = ref({ team_name: '', description: '' })
 
 function startEdit() {
   editForm.value = {
-    display_name: dept.value?.display_name ?? '',
+    team_name: dept.value?.team_name ?? '',
     description: dept.value?.description ?? '',
   }
   editMode.value = true
@@ -322,7 +322,7 @@ onMounted(() => {
   // 初始编辑表单
   if (dept.value) {
     editForm.value = {
-      display_name: dept.value.display_name ?? '',
+      team_name: dept.value.team_name ?? '',
       description: dept.value.description ?? '',
     }
   }

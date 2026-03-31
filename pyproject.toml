@@ -42,6 +42,7 @@ dependencies = [
     "structlog>=24.1.0",
     "cryptography>=42.0.0",
     "pyyaml>=6.0.0",
+    "pypinyin>=0.50.0",
 ]
 
 [project.optional-dependencies]

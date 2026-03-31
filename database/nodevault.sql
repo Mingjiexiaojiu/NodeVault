@@ -51,7 +51,6 @@ CREATE TABLE "public"."api_keys" (
 DROP TABLE IF EXISTS "public"."categories" CASCADE;
 CREATE TABLE "public"."categories" (
   "id" uuid NOT NULL DEFAULT gen_random_uuid(),
-  "name" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
   "display_name" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
   "icon" varchar(64) COLLATE "pg_catalog"."default",
   "sort_order" int4 NOT NULL DEFAULT 0,
@@ -73,13 +72,23 @@ CREATE TABLE "public"."credential_token_cache" (
 );
 
 -- ----------------------------
+-- Table structure for organizations
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."organizations" CASCADE;
+CREATE TABLE "public"."organizations" (
+  "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+  "name" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
+  "created_at" timestamp(6) NOT NULL DEFAULT now()
+);
+
+-- ----------------------------
 -- Table structure for departments  (renamed from namespaces)
 -- ----------------------------
 DROP TABLE IF EXISTS "public"."departments" CASCADE;
 CREATE TABLE "public"."departments" (
   "id" uuid NOT NULL DEFAULT gen_random_uuid(),
-  "slug" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
-  "display_name" varchar(256) COLLATE "pg_catalog"."default",
+  "org_id" uuid NOT NULL,
+  "team_name" varchar(256) COLLATE "pg_catalog"."default" NOT NULL,
   "description" text COLLATE "pg_catalog"."default",
   "owner_id" uuid NOT NULL,
   "created_at" timestamp(6) NOT NULL DEFAULT now()
@@ -259,7 +268,7 @@ DROP TABLE IF EXISTS "public"."skills" CASCADE;
 CREATE TABLE "public"."skills" (
   "id" uuid NOT NULL,
   "name" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
-  "display_name" varchar(256) COLLATE "pg_catalog"."default",
+  "display_name" varchar(256) COLLATE "pg_catalog"."default" NOT NULL,
   "description" text COLLATE "pg_catalog"."default",
   "owner_id" uuid NOT NULL,
   "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'active'::character varying,
@@ -351,8 +360,8 @@ ALTER TABLE "public"."api_keys" ADD CONSTRAINT "api_keys_pkey" PRIMARY KEY ("id"
 -- ----------------------------
 -- Indexes structure for table categories
 -- ----------------------------
-CREATE UNIQUE INDEX "ix_categories_name" ON "public"."categories" USING btree (
-  "name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+CREATE UNIQUE INDEX "ix_categories_display_name" ON "public"."categories" USING btree (
+  "display_name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
 );
 
 -- ----------------------------
@@ -373,10 +382,26 @@ CREATE UNIQUE INDEX "ix_credential_token_cache_credential_id" ON "public"."crede
 ALTER TABLE "public"."credential_token_cache" ADD CONSTRAINT "credential_token_cache_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
+-- Indexes structure for table organizations
+-- ----------------------------
+CREATE UNIQUE INDEX "ix_organizations_name" ON "public"."organizations" USING btree (
+  "name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+);
+
+-- ----------------------------
+-- Primary Key structure for table organizations
+-- ----------------------------
+ALTER TABLE "public"."organizations" ADD CONSTRAINT "organizations_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
 -- Indexes structure for table departments
 -- ----------------------------
-CREATE UNIQUE INDEX "ix_departments_slug" ON "public"."departments" USING btree (
-  "slug" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+CREATE INDEX "ix_departments_org_id" ON "public"."departments" USING btree (
+  "org_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+);
+CREATE UNIQUE INDEX "uq_org_team_name" ON "public"."departments" USING btree (
+  "org_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+  "team_name" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
 );
 
 -- ----------------------------
@@ -649,6 +674,7 @@ ALTER TABLE "public"."credential_token_cache" ADD CONSTRAINT "credential_token_c
 -- ----------------------------
 -- Foreign Keys structure for table departments
 -- ----------------------------
+ALTER TABLE "public"."departments" ADD CONSTRAINT "departments_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "public"."organizations" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."departments" ADD CONSTRAINT "departments_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "public"."users" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------

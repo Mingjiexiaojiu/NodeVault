@@ -201,7 +201,7 @@ class NodeRegistry:
                 .where(Node.status != NodeStatus.ARCHIVED.value)
                 .options(
                     selectinload(Node.tags),
-                    selectinload(Node.department),
+                    selectinload(Node.department).selectinload(Department.organization),
                     selectinload(Node.category_rel),
                     selectinload(Node.versions),
                 )
@@ -220,7 +220,7 @@ class NodeRegistry:
                 .where(Node.status != NodeStatus.ARCHIVED.value)
                 .options(
                     selectinload(Node.tags),
-                    selectinload(Node.department),
+                    selectinload(Node.department).selectinload(Department.organization),
                     selectinload(Node.category_rel),
                     selectinload(Node.versions),
                 )
@@ -245,7 +245,7 @@ class NodeRegistry:
             .options(
                 selectinload(Node.tags),
                 selectinload(Node.versions),
-                selectinload(Node.department),
+                selectinload(Node.department).selectinload(Department.organization),
                 selectinload(Node.category_rel),
             )
         )

@@ -45,11 +45,10 @@
         >
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-              {{ (ns.display_name || ns.slug).charAt(0).toUpperCase() }}
+              {{ ns.team_name.charAt(0).toUpperCase() }}
             </div>
             <div>
-              <div class="text-sm font-medium text-gray-900">{{ ns.display_name || ns.slug }}</div>
-              <div class="text-xs text-gray-400">{{ ns.slug }}</div>
+              <div class="text-sm font-medium text-gray-900">{{ ns.organization_name }} / {{ ns.team_name }}</div>
             </div>
           </div>
           <span class="px-2 py-0.5 text-xs rounded-full" :class="ns.role === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-200 text-gray-600'">
@@ -76,7 +75,7 @@
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">所属部门</label>
-            <input disabled :value="authStore.user?.departments?.map(d => d.display_name || d.slug).join(', ') || '—'" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
+            <input disabled :value="authStore.user?.departments?.map(d => `${d.organization_name} / ${d.team_name}`).join(', ') || '—'" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">联系电话</label>

@@ -15,6 +15,7 @@ from backend.auth.deps import get_current_user, get_superadmin_user
 from backend.database.session import get_db
 from backend.models.department import Department, DepartmentMember
 from backend.models.node import Node, NodeInvocationLog
+from backend.models.organization import Organization
 from backend.models.skill import Skill
 from backend.models.system_setting import SystemSetting
 from backend.models.user import User
@@ -228,15 +229,19 @@ async def list_all_nodes(
     result = await db.execute(stmt)
     nodes = result.scalars().all()
 
-    # gather department slugs and owner usernames in bulk
+    # gather organization_name + team_name and owner usernames in bulk
     dept_ids = list({n.department_id for n in nodes})
     owner_ids = list({n.owner_id for n in nodes})
-    dept_map: dict[uuid.UUID, str] = {}
+    dept_map: dict[uuid.UUID, tuple[str | None, str | None]] = {}
     owner_map: dict[uuid.UUID, str] = {}
 
     if dept_ids:
-        dept_result = await db.execute(select(Department.id, Department.slug).where(Department.id.in_(dept_ids)))
-        dept_map = {row.id: row.slug for row in dept_result}
+        dept_result = await db.execute(
+            select(Department.id, Organization.name.label("org_name"), Department.team_name)
+            .join(Organization, Department.org_id == Organization.id)
+            .where(Department.id.in_(dept_ids))
+        )
+        dept_map = {row.id: (row.org_name, row.team_name) for row in dept_result}
     if owner_ids:
         u_result = await db.execute(select(User.id, User.username).where(User.id.in_(owner_ids)))
         owner_map = {row.id: row.username for row in u_result}
@@ -247,7 +252,8 @@ async def list_all_nodes(
             name=n.name,
             display_name=n.display_name,
             department_id=n.department_id,
-            department_slug=dept_map.get(n.department_id),
+            organization_name=dept_map.get(n.department_id, (None, None))[0],
+            team_name=dept_map.get(n.department_id, (None, None))[1],
             owner_id=n.owner_id,
             owner_username=owner_map.get(n.owner_id),
             category_id=n.category_id,
@@ -295,12 +301,20 @@ async def list_all_departments(
     departments = result.scalars().all()
 
     dept_ids = [d.id for d in departments]
+    org_ids = list({d.org_id for d in departments})
     owner_ids = list({d.owner_id for d in departments})
     member_map: dict[uuid.UUID, int] = {}
     node_map: dict[uuid.UUID, int] = {}
     owner_map: dict[uuid.UUID, str] = {}
+    org_map: dict[uuid.UUID, str] = {}
 
     supervisor_map: dict[uuid.UUID, str] = {}
+
+    if org_ids:
+        org_result = await db.execute(
+            select(Organization.id, Organization.name).where(Organization.id.in_(org_ids))
+        )
+        org_map = {row.id: row.name for row in org_result}
 
     if dept_ids:
         m_result = await db.execute(
@@ -336,8 +350,8 @@ async def list_all_departments(
     items = [
         AdminDepartmentListItem(
             id=d.id,
-            slug=d.slug,
-            display_name=d.display_name,
+            organization_name=org_map.get(d.org_id),
+            team_name=d.team_name,
             owner_id=d.owner_id,
             owner_username=owner_map.get(d.owner_id),
             supervisor_username=supervisor_map.get(d.id),
@@ -356,22 +370,29 @@ async def admin_create_department(
     db: AsyncSession = Depends(get_db),
     _admin: User = Depends(get_superadmin_user),
 ) -> ApiResponse:
-    from pydantic import BaseModel, Field
-
-    slug: str = payload.get("slug", "")
-    display_name: str = payload.get("display_name", "")
+    org_name: str = payload.get("org_name", "")
+    team_name: str = payload.get("team_name", "")
     description: str | None = payload.get("description")
 
-    if not slug or not display_name:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="slug 和 display_name 不能为空")
+    if not org_name or not team_name:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="org_name 和 team_name 不能为空")
 
-    existing = (await db.execute(select(Department).where(Department.slug == slug))).scalar_one_or_none()
+    # 查找或创建 Organization
+    org = (await db.execute(select(Organization).where(Organization.name == org_name))).scalar_one_or_none()
+    if org is None:
+        org = Organization(name=org_name)
+        db.add(org)
+        await db.flush()
+
+    existing = (await db.execute(
+        select(Department).where(Department.org_id == org.id, Department.team_name == team_name)
+    )).scalar_one_or_none()
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="部门标识已存在")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该组织下已存在同名团队")
 
     dept = Department(
-        slug=slug,
-        display_name=display_name,
+        org_id=org.id,
+        team_name=team_name,
         description=description,
         owner_id=_admin.id,
     )
@@ -379,7 +400,7 @@ async def admin_create_department(
     await db.commit()
     await db.refresh(dept)
     return ApiResponse(
-        data={"id": str(dept.id), "slug": dept.slug, "display_name": dept.display_name},
+        data={"id": str(dept.id), "organization_name": org.name, "team_name": dept.team_name},
         message="部门已创建",
     )
 
@@ -526,11 +547,15 @@ async def analytics_top_nodes(
 
     dept_ids = list({n.department_id for n in nodes})
     owner_ids = list({n.owner_id for n in nodes})
-    dept_map: dict[uuid.UUID, str] = {}
+    dept_map: dict[uuid.UUID, tuple[str | None, str | None]] = {}
     owner_map: dict[uuid.UUID, str] = {}
     if dept_ids:
-        dept_result = await db.execute(select(Department.id, Department.slug).where(Department.id.in_(dept_ids)))
-        dept_map = {row.id: row.slug for row in dept_result}
+        dept_result = await db.execute(
+            select(Department.id, Organization.name.label("org_name"), Department.team_name)
+            .join(Organization, Department.org_id == Organization.id)
+            .where(Department.id.in_(dept_ids))
+        )
+        dept_map = {row.id: (row.org_name, row.team_name) for row in dept_result}
     if owner_ids:
         u_result = await db.execute(select(User.id, User.username).where(User.id.in_(owner_ids)))
         owner_map = {row.id: row.username for row in u_result}
@@ -540,7 +565,8 @@ async def analytics_top_nodes(
             id=n.id,
             name=n.name,
             display_name=n.display_name,
-            department_slug=dept_map.get(n.department_id),
+            organization_name=dept_map.get(n.department_id, (None, None))[0],
+            team_name=dept_map.get(n.department_id, (None, None))[1],
             owner_username=owner_map.get(n.owner_id),
             invocation_count=n.invocation_count,
         )

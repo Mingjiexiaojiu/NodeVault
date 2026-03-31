@@ -235,6 +235,8 @@ async def batch_import_nodes(
                 "category": n.category_rel.display_name if n.category_rel else "",
                 "status": n.status,
                 "department_id": str(n.department_id),
+                "organization_name": n.department.organization.name if n.department and n.department.organization else "",
+                "team_name": n.department.team_name if n.department else "",
                 "invocation_count": n.invocation_count,
                 "tags": [t.tag for t in n.tags],
             })

@@ -14,6 +14,7 @@ from backend.api.v1.health import router as health_router
 from backend.api.v1.invoke import router as invoke_router
 from backend.api.v1.logs import router as logs_router
 from backend.api.v1.nodes import router as nodes_router
+from backend.api.v1.organizations import router as organizations_router
 from backend.api.v1.search import router as search_router
 from backend.api.v1.skills import router as skills_router
 from backend.api.v1.stats import router as stats_router
@@ -31,6 +32,7 @@ api_router.include_router(credentials_router)
 api_router.include_router(departments_router)
 api_router.include_router(discovery_router)
 api_router.include_router(nodes_router)
+api_router.include_router(organizations_router)
 api_router.include_router(export_router)
 api_router.include_router(invoke_router)
 api_router.include_router(logs_router)

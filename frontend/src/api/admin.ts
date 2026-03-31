@@ -31,7 +31,8 @@ export interface AdminNodeListItem {
   name: string
   display_name: string | null
   department_id: string
-  department_slug: string | null
+  organization_name: string | null
+  team_name: string | null
   owner_id: string
   owner_username: string | null
   category_id: string
@@ -44,8 +45,8 @@ export interface AdminNodeListItem {
 
 export interface AdminDepartmentListItem {
   id: string
-  slug: string
-  display_name: string | null
+  organization_name: string
+  team_name: string
   owner_id: string
   owner_username: string | null
   supervisor_username: string | null
@@ -86,7 +87,8 @@ export interface TopNodeItem {
   id: string
   name: string
   display_name: string | null
-  department_slug: string | null
+  organization_name: string | null
+  team_name: string | null
   owner_username: string | null
   invocation_count: number
 }
@@ -152,7 +154,7 @@ export function listAllDepartments(params?: { page?: number; page_size?: number 
   return http.get<PagedResult<AdminDepartmentListItem>>('/admin/departments', { params })
 }
 
-export function adminCreateDepartment(payload: { slug: string; display_name: string; description?: string }) {
+export function adminCreateDepartment(payload: { org_name: string; team_name: string; description?: string }) {
   return http.post('/admin/departments', payload)
 }
 

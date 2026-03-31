@@ -43,7 +43,8 @@ class NodeResponse(BaseModel):
     status: NodeStatus
     visibility: NodeVisibility
     department_id: uuid.UUID
-    department_slug: str | None = None
+    organization_name: str | None = None
+    team_name: str | None = None
     owner_id: uuid.UUID
     owner_username: str | None = None
     tags: list[str]

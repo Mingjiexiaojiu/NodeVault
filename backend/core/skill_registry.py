@@ -47,16 +47,33 @@ class SkillRegistry:
     # ------------------------------------------------------------------
 
     async def create_skill(self, payload: SkillCreate, owner: User) -> Skill:
-        """创建技能集，校验 name 全局唯一性。"""
-        # Uniqueness check
-        existing = await self.db.execute(
-            select(Skill).where(Skill.name == payload.name)
-        )
-        if existing.scalar_one_or_none() is not None:
-            raise ValueError(f"已存在名为 '{payload.name}' 的技能集")
+        """创建技能集。name 可选，未提供时基于 display_name 自动生成。"""
+        from backend.core.naming import to_kebab_case
+
+        if payload.name:
+            # User-provided name: check uniqueness
+            existing = await self.db.execute(
+                select(Skill).where(Skill.name == payload.name)
+            )
+            if existing.scalar_one_or_none() is not None:
+                raise ValueError(f"已存在名为 '{payload.name}' 的技能集")
+            name = payload.name
+        else:
+            # Auto-generate from display_name
+            base = to_kebab_case(payload.display_name)
+            name = base
+            suffix = 2
+            while True:
+                existing = await self.db.execute(
+                    select(Skill).where(Skill.name == name)
+                )
+                if existing.scalar_one_or_none() is None:
+                    break
+                name = f"{base}-{suffix}"
+                suffix += 1
 
         skill = Skill(
-            name=payload.name,
+            name=name,
             display_name=payload.display_name,
             description=payload.description,
             owner_id=owner.id,

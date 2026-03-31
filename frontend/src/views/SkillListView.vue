@@ -43,7 +43,7 @@
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <h3 class="text-sm font-semibold text-gray-900 truncate">{{ skill.display_name || skill.name }}</h3>
+                <h3 class="text-sm font-semibold text-gray-900 truncate">{{ skill.display_name }}</h3>
                 <span v-if="skill.is_system" class="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 border border-blue-200">系统</span>
                 <span v-else class="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-gray-50 text-gray-500 border border-gray-200">自定义</span>
                 <span v-if="skill.is_stale" class="shrink-0 text-xs px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">需更新</span>
@@ -80,21 +80,13 @@
           <h2 class="text-base font-semibold text-gray-900 mb-4">新建技能集</h2>
           <div class="space-y-4">
             <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-600">名称 (kebab-case) <span class="text-red-500">*</span></label>
-              <input
-                v-model="createForm.name"
-                placeholder="my-skill"
-                class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
-              />
-              <p v-if="createError" class="text-xs text-red-500">{{ createError }}</p>
-            </div>
-            <div class="flex flex-col gap-1.5">
-              <label class="text-xs font-medium text-gray-600">显示名称</label>
+              <label class="text-xs font-medium text-gray-600">技能集名称 <span class="text-red-500">*</span></label>
               <input
                 v-model="createForm.display_name"
                 placeholder="我的技能集"
                 class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
               />
+              <p v-if="createError" class="text-xs text-red-500">{{ createError }}</p>
             </div>
             <div class="flex flex-col gap-1.5">
               <label class="text-xs font-medium text-gray-600">描述</label>
@@ -104,6 +96,18 @@
                 class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
               />
             </div>
+            <details class="group">
+              <summary class="text-xs text-gray-400 cursor-pointer hover:text-gray-600 select-none">高级选项</summary>
+              <div class="flex flex-col gap-1.5 mt-3">
+                <label class="text-xs font-medium text-gray-600">标识 (kebab-case)</label>
+                <input
+                  v-model="createForm.name"
+                  placeholder="留空自动生成"
+                  class="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400 focus:bg-white transition-colors"
+                />
+                <p class="text-xs text-gray-400">不填则根据名称自动生成</p>
+              </div>
+            </details>
           </div>
           <div class="flex justify-end gap-3 mt-6">
             <button
@@ -157,7 +161,7 @@ onMounted(async () => {
 
 async function handleCreate() {
   createError.value = ''
-  if (!createForm.name) {
+  if (!createForm.display_name) {
     createError.value = '名称不能为空'
     return
   }
@@ -165,15 +169,15 @@ async function handleCreate() {
   creating.value = true
   try {
     const skill = await createSkill({
-      name: createForm.name,
-      display_name: createForm.display_name || undefined,
+      display_name: createForm.display_name,
+      name: createForm.name || undefined,
       description: createForm.description || undefined,
     })
     showCreate.value = false
     router.push(`/skills/${skill.id}`)
   } catch (e: unknown) {
     const err = e as { response?: { data?: { detail?: string } } }
-    createError.value = err.response?.data?.detail ?? '创建失败，请检查名称格式'
+    createError.value = err.response?.data?.detail ?? '创建失败'
   } finally {
     creating.value = false
   }

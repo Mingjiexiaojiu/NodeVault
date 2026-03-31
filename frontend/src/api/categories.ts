@@ -4,7 +4,6 @@ import http from './http'
 
 export interface Category {
   id: string
-  name: string
   display_name: string
   icon: string | null
   sort_order: number
@@ -14,7 +13,6 @@ export interface Category {
 }
 
 export interface CategoryCreate {
-  name: string
   display_name: string
   icon?: string
   sort_order?: number

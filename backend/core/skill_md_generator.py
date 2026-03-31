@@ -45,7 +45,7 @@ def _build_prompt(skill: Skill, nodes_meta: list[dict[str, Any]], base_url: str)
     return f"""你是一名专业的 AI 工具技能文档作者。请根据以下 NodeVault 技能集信息，生成一份符合 Agent Skills 规范的 SKILL.md 文件。
 
 技能集名称：{skill.name}
-展示名称：{skill.display_name or skill.name}
+展示名称：{skill.display_name}
 描述：{skill.description or '（无描述）'}
 节点数量：{len(nodes_meta)}
 

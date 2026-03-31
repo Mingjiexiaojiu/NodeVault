@@ -4,6 +4,7 @@ from backend.models.category import Category
 from backend.models.credential import CredentialTokenCache, ServiceCredential
 from backend.models.discovery import DiscoverySession
 from backend.models.department import Department, DepartmentMember
+from backend.models.organization import Organization
 from backend.models.role_application import RoleApplication
 from backend.models.node import Node, NodeInvocationLog, NodeTag, NodeVersion
 from backend.models.skill import Skill, SkillVersion
@@ -21,6 +22,7 @@ __all__ = [
     "DiscoverySession",
     "Department",
     "DepartmentMember",
+    "Organization",
     "RoleApplication",
     "Node",
     "NodeVersion",

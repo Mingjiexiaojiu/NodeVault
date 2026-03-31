@@ -129,14 +129,14 @@ async def me(current_user: User = Depends(get_current_user), db: AsyncSession = 
     result = await db.execute(
         select(DepartmentMember)
         .where(DepartmentMember.user_id == current_user.id, DepartmentMember.status == "active")
-        .options(selectinload(DepartmentMember.department))
+        .options(selectinload(DepartmentMember.department).selectinload(Department.organization))
     )
     memberships = result.scalars().all()
     data["departments"] = [
         UserDepartmentBrief(
             id=m.department.id,
-            slug=m.department.slug,
-            display_name=m.department.display_name,
+            organization_name=m.department.organization.name if m.department.organization else "",
+            team_name=m.department.team_name,
             role=m.role,
         ).model_dump()
         for m in memberships

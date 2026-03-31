@@ -3,8 +3,8 @@ import type { NodeStatus } from './nodes'
 
 export interface DepartmentBrief {
   id: string
-  slug: string
-  display_name: string | null
+  organization_name: string
+  team_name: string
   description: string | null
   owner_id: string
   member_count: number
@@ -45,8 +45,8 @@ export interface DepartmentStats {
 
 export interface DepartmentDetail {
   id: string
-  slug: string
-  display_name: string | null
+  organization_name: string
+  team_name: string
   description: string | null
   owner_id: string
   owner_username: string | null
@@ -62,10 +62,10 @@ export const listDepartments = (params?: { page?: number; page_size?: number }) 
 export const getDepartment = (id: string) =>
   http.get<DepartmentDetail>(`/departments/${id}`)
 
-export const createDepartment = (payload: { slug: string; display_name: string; description?: string }) =>
+export const createDepartment = (payload: { org_name: string; team_name: string; description?: string }) =>
   http.post('/departments', payload)
 
-export const updateDepartment = (id: string, payload: { display_name?: string; description?: string }) =>
+export const updateDepartment = (id: string, payload: { team_name?: string; description?: string }) =>
   http.patch(`/departments/${id}`, payload)
 
 export const addMember = (deptId: string, payload: { username: string; role?: string }) =>

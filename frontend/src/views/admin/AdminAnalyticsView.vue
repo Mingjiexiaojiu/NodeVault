@@ -79,7 +79,7 @@
               <td class="pl-5 pr-2 py-3 w-8 text-xs font-semibold text-gray-400">{{ i + 1 }}</td>
               <td class="px-2 py-3">
                 <div class="font-medium text-gray-800 text-xs">{{ node.display_name || node.name }}</div>
-                <div class="text-xs text-gray-400">{{ node.department_slug }}</div>
+                <div class="text-xs text-gray-400">{{ [node.organization_name, node.team_name].filter(Boolean).join('/') }}</div>
               </td>
               <td class="px-3 py-3 text-xs text-gray-500">{{ node.owner_username }}</td>
               <td class="pr-5 py-3 text-right text-xs font-semibold text-indigo-600">{{ node.invocation_count.toLocaleString() }}</td>

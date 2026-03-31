@@ -52,7 +52,7 @@ def create_mcp_server() -> FastMCP:
                 tag_list = [t.tag for t in (node.tags or [])]
                 if tags and not any(t in tag_list for t in tags.split(",")):
                     continue
-                node_category = node.category_rel.name if node.category_rel else None
+                node_category = node.category_rel.display_name if node.category_rel else None
                 if category and node_category != category:
                     continue
                 nodes_data.append(exporter.export_node(

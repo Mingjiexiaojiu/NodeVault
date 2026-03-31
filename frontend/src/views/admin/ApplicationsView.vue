@@ -149,7 +149,7 @@
                 {{ availableDepartments.length === 0 ? '当前无可分配的空余部门' : '— 请选择部门 —' }}
               </option>
               <option v-for="dept in availableDepartments" :key="dept.id" :value="dept.id">
-                {{ dept.display_name || dept.slug }}
+                {{ dept.organization_name + ' / ' + dept.team_name }}
               </option>
             </select>
             <p v-if="!approveModal.loadingDepts && availableDepartments.length === 0"

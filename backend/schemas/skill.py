@@ -6,13 +6,15 @@ from pydantic import BaseModel, field_validator
 
 
 class SkillCreate(BaseModel):
-    name: str
-    display_name: str | None = None
+    display_name: str
+    name: str | None = None
     description: str | None = None
 
     @field_validator("name")
     @classmethod
-    def name_must_be_kebab(cls, v: str) -> str:
+    def name_must_be_kebab(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
         import re
         if not re.match(r"^[a-z0-9]+(-[a-z0-9]+)*$", v):
             raise ValueError("name 必须为 kebab-case 格式（小写字母、数字和连字符）")
@@ -30,7 +32,7 @@ class SkillUpdate(BaseModel):
 class SkillResponse(BaseModel):
     id: uuid.UUID
     name: str
-    display_name: str | None
+    display_name: str
     description: str | None
     owner_id: uuid.UUID
     status: str

@@ -10,6 +10,7 @@ from backend.auth.deps import get_current_user
 from backend.database.session import get_db
 from backend.models.department import Department, DepartmentMember
 from backend.models.node import Node
+from backend.models.organization import Organization
 from backend.models.user import User
 from backend.schemas.enums import NodeStatus
 from backend.schemas.response import ApiResponse
@@ -23,13 +24,13 @@ from pydantic import BaseModel, Field
 
 
 class DepartmentCreate(BaseModel):
-    slug: str = Field(..., min_length=2, max_length=64, pattern=r"^[a-z][a-z0-9_-]{1,63}$")
-    display_name: str = Field(..., min_length=1, max_length=256)
+    org_name: str = Field(..., min_length=1, max_length=128)
+    team_name: str = Field(..., min_length=1, max_length=256)
     description: str | None = None
 
 
 class DepartmentUpdate(BaseModel):
-    display_name: str | None = None
+    team_name: str | None = None
     description: str | None = None
 
 
@@ -56,14 +57,38 @@ async def list_departments_public(
         )
         .exists()
     )
+
+    # Query supervisor username for each department
+    supervisor_sq = (
+        select(
+            DepartmentMember.department_id,
+            User.username.label("admin_username"),
+        )
+        .join(User, DepartmentMember.user_id == User.id)
+        .where(DepartmentMember.role == "admin", User.role == 1)
+        .subquery()
+    )
+
     result = await db.execute(
-        select(Department.id, Department.slug, Department.display_name)
+        select(
+            Department.id,
+            Organization.name.label("organization_name"),
+            Department.team_name,
+            supervisor_sq.c.admin_username,
+        )
+        .join(Organization, Department.org_id == Organization.id)
+        .outerjoin(supervisor_sq, supervisor_sq.c.department_id == Department.id)
         .where(supervisor_exists)
-        .order_by(Department.display_name)
+        .order_by(Organization.name, Department.team_name)
     )
     rows = result.all()
     items = [
-        {"id": str(r.id), "slug": r.slug, "display_name": r.display_name}
+        {
+            "id": str(r.id),
+            "organization_name": r.organization_name,
+            "team_name": r.team_name,
+            "admin_username": r.admin_username,
+        }
         for r in rows
     ]
     return ApiResponse(data={"items": items})
@@ -80,10 +105,12 @@ async def list_departments(
     stmt = (
         select(
             Department,
+            Organization.name.label("organization_name"),
             func.count(DepartmentMember.id.distinct()).label("member_count"),
         )
+        .join(Organization, Department.org_id == Organization.id)
         .outerjoin(DepartmentMember, DepartmentMember.department_id == Department.id)
-        .group_by(Department.id)
+        .group_by(Department.id, Organization.name)
         .order_by(Department.created_at.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
@@ -101,11 +128,11 @@ async def list_departments(
     node_counts = dict(nc_result.all())
 
     data = []
-    for dept, member_count in rows:
+    for dept, organization_name, member_count in rows:
         data.append({
             "id": str(dept.id),
-            "slug": dept.slug,
-            "display_name": dept.display_name,
+            "organization_name": organization_name,
+            "team_name": dept.team_name,
             "description": dept.description,
             "owner_id": str(dept.owner_id),
             "member_count": member_count,
@@ -129,14 +156,29 @@ async def create_department(
     if current_user.role > 1:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅主管及以上身份可创建部门")
 
-    # 检查 slug 唯一
-    existing = await db.execute(select(Department).where(Department.slug == payload.slug))
+    # 查找或创建 Organization
+    org_result = await db.execute(
+        select(Organization).where(Organization.name == payload.org_name)
+    )
+    org = org_result.scalar_one_or_none()
+    if org is None:
+        org = Organization(name=payload.org_name)
+        db.add(org)
+        await db.flush()
+
+    # 检查同一组织下团队名唯一
+    existing = await db.execute(
+        select(Department).where(
+            Department.org_id == org.id,
+            Department.team_name == payload.team_name,
+        )
+    )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="部门标识已存在")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="该组织下已存在同名团队")
 
     dept = Department(
-        slug=payload.slug,
-        display_name=payload.display_name,
+        org_id=org.id,
+        team_name=payload.team_name,
         description=payload.description,
         owner_id=current_user.id,
     )
@@ -149,7 +191,7 @@ async def create_department(
     await db.refresh(dept)
 
     return ApiResponse(
-        data={"id": str(dept.id), "slug": dept.slug, "display_name": dept.display_name},
+        data={"id": str(dept.id), "organization_name": org.name, "team_name": dept.team_name},
         message="部门已创建",
     )
 
@@ -163,7 +205,10 @@ async def get_department(
     result = await db.execute(
         select(Department)
         .where(Department.id == dept_id)
-        .options(selectinload(Department.members).selectinload(DepartmentMember.user))
+        .options(
+            selectinload(Department.organization),
+            selectinload(Department.members).selectinload(DepartmentMember.user),
+        )
     )
     dept = result.scalar_one_or_none()
     if dept is None:
@@ -204,8 +249,8 @@ async def get_department(
 
     return ApiResponse(data={
         "id": str(dept.id),
-        "slug": dept.slug,
-        "display_name": dept.display_name,
+        "organization_name": dept.organization.name if dept.organization else None,
+        "team_name": dept.team_name,
         "description": dept.description,
         "owner_id": str(dept.owner_id),
         "owner_username": owner.username if owner else None,
@@ -265,13 +310,13 @@ async def update_department(
     if membership is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅部门管理员可修改部门信息")
 
-    if payload.display_name is not None:
-        dept.display_name = payload.display_name
+    if payload.team_name is not None:
+        dept.team_name = payload.team_name
     if payload.description is not None:
         dept.description = payload.description
     await db.commit()
 
-    return ApiResponse(data={"id": str(dept.id), "display_name": dept.display_name, "description": dept.description})
+    return ApiResponse(data={"id": str(dept.id), "team_name": dept.team_name, "description": dept.description})
 
 
 @router.post("/{dept_id}/members", response_model=ApiResponse, summary="添加部门成员")

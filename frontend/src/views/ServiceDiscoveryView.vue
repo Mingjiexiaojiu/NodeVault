@@ -575,7 +575,7 @@ const duplicateInfo = ref<{ existing_sessions: { id: string; base_url: string; s
 
 // --- Computed ---
 const namespaceId = computed(() => auth.user?.departments?.[0]?.id ?? '')
-const namespaceName = computed(() => auth.user?.departments?.[0]?.display_name || auth.user?.departments?.[0]?.slug || '默认')
+const namespaceName = computed(() => auth.user?.departments?.[0]?.team_name || '默认')
 
 const selectedCount = computed(() => probeDrafts.value.filter(d => d.selected && !importedPaths.value.has(d.endpoint)).length)
 const allSelected = computed(() => probeDrafts.value.length > 0 && probeDrafts.value.every(d => importedPaths.value.has(d.endpoint) || d.selected))

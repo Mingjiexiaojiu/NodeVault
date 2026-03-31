@@ -3,8 +3,8 @@ import http from './http'
 // ---------- Types ----------
 
 export interface SkillCreate {
-  name: string
-  display_name?: string
+  display_name: string
+  name?: string
   description?: string
 }
 
@@ -44,7 +44,7 @@ export interface SkillVersion {
 export interface SkillItem {
   id: string
   name: string
-  display_name: string | null
+  display_name: string
   description: string | null
   owner_id: string
   status: string

@@ -14,7 +14,7 @@
       <div class="flex items-start justify-between gap-4">
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <h1 class="text-xl font-semibold text-gray-900">{{ skill.display_name || skill.name }}</h1>
+            <h1 class="text-xl font-semibold text-gray-900">{{ skill.display_name }}</h1>
             <span class="font-mono text-sm text-gray-400">{{ skill.name }}</span>
             <span
               v-if="skill.is_system"

@@ -161,7 +161,7 @@
                   errors.department ? 'border-red-300 focus:ring-red-400 text-gray-700' : 'border-gray-200 focus:ring-indigo-400 focus:border-indigo-400 text-gray-700']">
                 <option value="" disabled>— 请选择所属部门 —</option>
                 <option v-for="dept in departments" :key="dept.id" :value="dept.id">
-                  {{ dept.display_name || dept.slug }}
+                  {{ dept.organization_name }} / {{ dept.team_name }}
                 </option>
               </select>
               <div class="absolute inset-y-0 right-3 flex items-center pointer-events-none">
@@ -225,7 +225,7 @@ import http from '@/api/http'
 const router = useRouter()
 const auth = useAuthStore()
 
-interface DeptOption { id: string; slug: string; display_name: string | null }
+interface DeptOption { id: string; organization_name: string; team_name: string }
 
 const form = reactive({
   email: '',
