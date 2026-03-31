@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.api.v1.router import api_router
 from backend.api.v1.mcp import get_mcp_app_with_auth
-from backend.core.search import NodeSearchIndex
+from backend.core.search import NodeSearchIndex, sync_search_index
 from backend.database.session import engine
 from backend.schemas.response import ErrorDetail, ErrorResponse, ErrorCode
 
@@ -27,9 +27,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("meilisearch_index_ready")
     except Exception as exc:
         logger.warning("meilisearch_setup_failed", error=str(exc))
+
+    # 启动时全量同步搜索索引，确保与数据库一致
+    try:
+        await sync_search_index()
+        logger.info("meilisearch_sync_done")
+    except Exception as exc:
+        logger.warning("meilisearch_sync_failed", error=str(exc))
+
     yield
     await engine.dispose()
     logger.info("backend_shutdown")
+
+
+# _sync_search_index 已迁移到 backend.core.search.sync_search_index
 
 
 app = FastAPI(
@@ -88,7 +99,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         400: ErrorCode.VALIDATION_ERROR,
         401: ErrorCode.UNAUTHORIZED,
         403: ErrorCode.FORBIDDEN,
-        404: ErrorCode.NODE_NOT_FOUND,
+        404: ErrorCode.NOT_FOUND,
         409: ErrorCode.NODE_ALREADY_EXISTS,
         502: ErrorCode.INVOKE_FAILED,
         503: ErrorCode.INTERNAL_ERROR,

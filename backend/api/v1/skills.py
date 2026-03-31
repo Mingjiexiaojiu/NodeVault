@@ -366,6 +366,31 @@ async def export_skill_zip(
 # Skill-Node M2M Management
 # ---------------------------------------------------------------------------
 
+@router.get("/{skill_id}/nodes", response_model=ApiResponse)
+async def list_skill_nodes(
+    skill_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> ApiResponse:
+    """获取技能集关联的节点列表。"""
+    registry = SkillRegistry(db)
+    skill = await registry.get_skill(skill_id)
+    if skill is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="技能集不存在")
+    nodes = [
+        SkillNodeItem(
+            id=sn.node.id,
+            name=sn.node.name,
+            display_name=sn.node.display_name,
+            usage_hint=sn.usage_hint,
+            category_name=sn.node.category_rel.display_name if sn.node.category_rel else None,
+        )
+        for sn in (skill.skill_nodes or [])
+        if sn.node is not None
+    ]
+    return ApiResponse(data=nodes)
+
+
 @router.post("/{skill_id}/nodes", response_model=ApiResponse, status_code=status.HTTP_201_CREATED)
 async def add_skill_node(
     skill_id: uuid.UUID,

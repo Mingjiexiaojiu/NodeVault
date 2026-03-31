@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 
 class ErrorCode(str, Enum):
+    NOT_FOUND = "NOT_FOUND"
     NODE_NOT_FOUND = "NODE_NOT_FOUND"
     NODE_ALREADY_EXISTS = "NODE_ALREADY_EXISTS"
     VALIDATION_ERROR = "VALIDATION_ERROR"

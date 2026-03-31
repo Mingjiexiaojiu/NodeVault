@@ -787,28 +787,34 @@ async function handleDeleteVersion(version: string) {
 
 onMounted(async () => {
   try {
-    const [nodeRes, versionsRes, logsRes] = await Promise.all([
-      getNode(id),
-      listVersions(id),
-      getLogs(id, { page_size: 10 }),
-    ])
+    const nodeRes = await getNode(id)
     node.value = nodeRes.data
+  } catch (e: unknown) {
+    const err = e as { response?: { status?: number } }
+    if (err.response?.status === 404) {
+      notFound.value = true
+    }
+    loading.value = false
+    return
+  }
+
+  // 版本和日志独立加载，失败不影响页面展示
+  try {
+    const versionsRes = await listVersions(id)
     versions.value = versionsRes.data
-    logs.value = logsRes.data
-    // 预填充 runtime_config 来自最新版本
     if (versionsRes.data.length > 0) {
       const latest = versionsRes.data[versionsRes.data.length - 1]
       versionForm.runtime_config_raw = JSON.stringify(latest.runtime_config, null, 2)
       versionForm.input_schema_raw = JSON.stringify(latest.input_schema, null, 2)
       versionForm.output_schema_raw = JSON.stringify(latest.output_schema, null, 2)
     }
-  } catch (e: unknown) {
-    const err = e as { response?: { status?: number } }
-    if (err.response?.status === 404) {
-      notFound.value = true
-    }
-  } finally {
-    loading.value = false
-  }
+  } catch { /* ignore */ }
+
+  try {
+    const logsRes = await getLogs(id, { page_size: 10 })
+    logs.value = logsRes.data
+  } catch { /* ignore */ }
+
+  loading.value = false
 })
 </script>

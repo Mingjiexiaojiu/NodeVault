@@ -7,6 +7,7 @@ import json
 import uuid
 from typing import Any
 
+import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -24,6 +25,8 @@ from backend.schemas.enums import NodeStatus
 from backend.schemas.response import ApiResponse
 
 router = APIRouter(prefix="/agent", tags=["Agent"])
+
+logger = structlog.get_logger()
 
 # ---- helpers ----------------------------------------------------------------
 
@@ -96,7 +99,37 @@ async def discover_capabilities(
         )
         hits = raw.get("hits", [])
     except Exception:
+        logger.warning("agent_discover_meilisearch_failed_fallback_to_db")
         hits = []
+
+    # MeiliSearch 无结果时回退到 DB 模糊查询
+    if not hits:
+        from sqlalchemy import or_
+        from sqlalchemy.orm import selectinload
+        pattern = f"%{intent}%"
+        result = await db.execute(
+            select(Node)
+            .options(selectinload(Node.tags), selectinload(Node.category_rel))
+            .where(Node.status == NodeStatus.ACTIVE.value)
+            .where(or_(
+                Node.name.ilike(pattern),
+                Node.display_name.ilike(pattern),
+                Node.description.ilike(pattern),
+            ))
+            .limit(limit * 2)
+        )
+        db_nodes = list(result.scalars().all())
+        hits = [
+            {
+                "id": str(n.id),
+                "name": n.name,
+                "display_name": n.display_name,
+                "description": n.description,
+                "category": n.category_rel.display_name if n.category_rel else None,
+                "tags": [t.tag for t in n.tags],
+            }
+            for n in db_nodes
+        ]
 
     registry = NodeRegistry(db)
     items = await _enrich_with_versions(hits, db, registry)
