@@ -4,7 +4,7 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-semibold text-gray-900">AI 提供商配置</h1>
-        <p class="text-sm text-gray-500 mt-0.5">管理用于 AI 生成的模型提供商，可在生成 SKILL.md 时选择使用。</p>
+        <p class="text-sm text-gray-400 mt-0.5">管理用于 AI 生成的模型提供商，可在生成 SKILL.md 时选择使用。</p>
       </div>
       <button
         class="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 active:scale-95 transition-all shadow-sm shadow-indigo-200"

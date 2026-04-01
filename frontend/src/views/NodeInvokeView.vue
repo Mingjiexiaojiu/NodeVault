@@ -6,7 +6,7 @@
         ← 返回详情
       </RouterLink>
       <span class="text-gray-300">/</span>
-      <h1 class="text-xl font-bold text-gray-900">
+      <h1 class="text-xl font-semibold text-gray-900">
         调用节点：{{ node?.display_name || node?.name || nodeId }}
       </h1>
     </div>

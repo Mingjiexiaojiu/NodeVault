@@ -7,8 +7,8 @@
       </RouterLink>
       <span class="text-gray-300">/</span>
       <div class="flex items-center gap-2">
-        <span class="text-xl font-bold text-gray-900">#</span>
-        <h1 class="text-xl font-bold text-gray-900">{{ tag }}</h1>
+        <span class="text-xl font-semibold text-gray-900">#</span>
+        <h1 class="text-xl font-semibold text-gray-900">{{ tag }}</h1>
         <span v-if="total > 0" class="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full">
           {{ total }} 个节点
         </span>

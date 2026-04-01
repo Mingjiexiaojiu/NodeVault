@@ -8,7 +8,7 @@
       </div>
 
       <template v-else-if="node">
-        <h1 class="text-xl font-bold text-gray-900 mb-1">编辑节点</h1>
+        <h1 class="text-xl font-semibold text-gray-900 mb-1">编辑节点</h1>
         <p class="text-sm text-gray-400 font-mono mb-6">{{ node.name }}</p>
 
         <form class="space-y-5" @submit.prevent="handleSubmit">

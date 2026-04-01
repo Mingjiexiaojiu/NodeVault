@@ -224,5 +224,7 @@ onMounted(async () => {
   } catch {
     // ignore - tags are optional
   }
+  // 默认加载全部节点
+  doSearch(1)
 })
 </script>

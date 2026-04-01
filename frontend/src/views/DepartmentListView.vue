@@ -1,10 +1,10 @@
 <template>
   <div>
     <!-- 页头 -->
-    <div class="flex items-center justify-between mb-8">
+    <div class="flex items-center justify-between mb-6">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900">部门总览</h1>
-        <p class="mt-1 text-sm text-gray-500">查看公司所有部门，了解各部门能力节点与成员</p>
+        <h1 class="text-xl font-semibold text-gray-900">部门总览</h1>
+        <p class="text-sm text-gray-400 mt-0.5">查看公司所有部门，了解各部门能力节点与成员</p>
       </div>
       <button
         v-if="canCreate"

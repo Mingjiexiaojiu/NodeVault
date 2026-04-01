@@ -1,18 +1,5 @@
 <template>
   <div>
-    <!-- 返回 + 标题栏 -->
-    <div class="flex items-center gap-3 mb-6">
-      <RouterLink
-        to="/discover"
-        class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors"
-      >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-        </svg>
-        返回列表
-      </RouterLink>
-    </div>
-
     <!-- 加载中 -->
     <div v-if="loading" class="space-y-4">
       <div class="h-24 bg-gray-100 rounded-2xl animate-pulse" />

@@ -86,7 +86,7 @@ async def _db_fallback_search(
             "name": node.name,
             "display_name": node.display_name,
             "description": node.description,
-            "category": node.category_rel.display_name if node.category_rel else None,
+            "category": {"id": str(node.category_id), "display_name": node.category_rel.display_name} if node.category_rel else None,
             "status": node.status,
             "department_id": str(node.department_id),
             "invocation_count": node.invocation_count,
@@ -177,6 +177,12 @@ async def search_nodes(
                 if background_tasks and stale_ids:
                     background_tasks.add_task(cleanup_stale_documents, stale_ids)
                 hits = fresh_hits
+
+    # Normalize MeiliSearch hits: convert string category to CategoryBrief object
+    for h in hits:
+        cat = h.get("category")
+        if isinstance(cat, str):
+            h["category"] = {"display_name": cat}
 
     return ApiResponse(data={
         "total": total,

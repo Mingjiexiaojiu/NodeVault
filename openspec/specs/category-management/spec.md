@@ -130,3 +130,28 @@
 - **WHEN** role=0 的用户调�?`DELETE /api/v1/categories/{id}`
 - **THEN** 系统删除该分类（若分类下有节点，返回 409 提示需先迁移节点）
 
+
+
+---
+
+## Changes from ux-naming-refactor
+
+## MODIFIED Requirements
+
+### Requirement: Category 数据表（更新）
+`categories` 表 SHALL 移除 `name` 字段。`display_name` 字段 SHALL 设置为 UNIQUE NOT NULL，成为分类的唯一标识。更新后字段：id（UUID PK）、display_name（VARCHAR(128) UNIQUE NOT NULL）、icon（VARCHAR(64) 可选）、sort_order（INT 默认 0）、is_default（BOOL 默认 false）、created_by（UUID FK → users.id）、created_at、updated_at。
+
+#### Scenario: display_name 重复时创建失败
+- **WHEN** 提交的 display_name 与已有分类重复
+- **THEN** 系统 SHALL 返回 409 Conflict
+
+### Requirement: Category creation restricted to superadmin（更新）
+系统分类（categories）的创建、更新和删除 SHALL 仅允许 role=0 的超管执行；普通用户 SHALL 不能创建或删除分类（只读）。创建表单 SHALL 只传 display_name 和可选 icon，不接受 name 字段。
+
+#### Scenario: Superadmin creates a category with display_name only
+- **WHEN** role=0 的用户调用 `POST /api/v1/categories`，只提交 display_name
+- **THEN** 系统成功创建分类，返回 201
+
+#### Scenario: display_name 重复
+- **WHEN** 提交的 display_name 与已有分类重名
+- **THEN** 系统 SHALL 返回 409，提示"该分类名称已存在"

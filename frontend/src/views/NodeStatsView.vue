@@ -13,8 +13,8 @@
       <!-- 标题 -->
       <div class="flex items-center justify-between mb-6">
         <div>
-          <h1 class="text-xl font-bold text-gray-900">调用统计</h1>
-          <p class="text-sm text-gray-500 mt-0.5">节点 <span class="font-mono text-gray-700">{{ nodeId }}</span></p>
+          <h1 class="text-xl font-semibold text-gray-900">调用统计</h1>
+          <p class="text-sm text-gray-400 mt-0.5">节点 <span class="font-mono text-gray-700">{{ nodeId }}</span></p>
         </div>
         <div class="flex items-center gap-2">
           <span class="text-sm text-gray-500">统计周期</span>
